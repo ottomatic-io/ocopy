@@ -23,8 +23,7 @@ setup(
     setup_requires=["pytest-runner", "setuptools_scm"],
     tests_require=["pytest"],
     url="https://github.com/ottomatic-io/ocopy",
-    version="0.1.1",
-    use_scm_version=False,
+    use_scm_version=True,
     classifiers=[
         "Programming Language :: Python :: 3 :: Only",
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
