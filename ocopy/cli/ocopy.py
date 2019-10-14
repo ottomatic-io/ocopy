@@ -58,7 +58,4 @@ def cli(overwrite: bool, source: str, destinations: List[str]):
 
 
 if __name__ == "__main__":
-    # TODO: - skip existing
-    #       - progress reporting
-    #       -
     cli()
