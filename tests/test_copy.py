@@ -1,4 +1,6 @@
-from ocopy.copy import *
+from pathlib import Path
+
+from ocopy.copy import copy, copy_threaded
 from ocopy.hash import get_hash
 from ocopy.utils import folder_size
 
@@ -6,8 +8,8 @@ from ocopy.utils import folder_size
 def test_get_hash(tmpdir):
     assert get_hash(Path('/dev/null')) == 'ef46db3751d8e999'
 
-    p = tmpdir / 'test-äöüàéè.txt'
-    p.write('éèà' * 1024 * 1024 * 16)
+    p = Path(tmpdir) / 'test-äöüàéè.txt'
+    p.write_text('éèà' * 1024 * 1024 * 16)
     assert get_hash(p) == '41568b54725a72dd'
 
 
