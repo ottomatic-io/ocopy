@@ -1,0 +1,8 @@
+*.rdb
+*.pyc
+*/__pycache__
+*/.cache
+.idea
+.eggs
+testdir*
+*.egg-info
