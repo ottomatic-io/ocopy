@@ -6,3 +6,5 @@
 .eggs
 testdir*
 *.egg-info
+build
+dist
