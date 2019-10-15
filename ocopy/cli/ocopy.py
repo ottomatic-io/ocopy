@@ -40,26 +40,32 @@ def cli(overwrite: bool, verify: bool, source: str, destinations: List[str]):
     click.echo(f"Copying {source} to {', '.join(destinations)}")
 
     size = folder_size(source)
+    length = size
     if verify:
-        size *= 2
-    with click.progressbar(length=size, item_show_func=lambda name: name) as bar:
+        length *= 2
+    with click.progressbar(length=length, item_show_func=lambda name: name) as bar:
         start = time.time()
-        # file_infos = copytree(source, destinations, overwrite=overwrite)
         copy_and_seal(Path(source), [Path(d) for d in destinations], overwrite=overwrite, verify=verify)
+
+        # Only update the progress bar every 3%
+        progress = 0
+        step = length / 33
 
         while True:
             file_path, done = progress_queue.get(timeout=300)
+            bar.current_item = Path(file_path).name
+
             if file_path == 'finished':
                 bar.finish()
                 bar.render_progress()
                 break
 
-            bar.current_item = Path(file_path).name
-            bar.update(done)
-            total_done += done
+            progress += done
+            if progress >= step:
+                bar.update(progress)
+                progress = 0
 
         stop = time.time()
-
         print(f"\n{size / 1000 / 1000 / (stop - start):.2f} MB/s")
 
 
