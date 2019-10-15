@@ -24,11 +24,16 @@ from ocopy.utils import folder_size
     help="Verify copy by re-calculating the xxHash of the source and all destinations (defaults to --verify)",
     default=True,
 )
+@click.option(
+    "--skip-existing/--dont-skip",
+    help="Skip existing files if they have the same size and modification time as the source (defaults to --dont-skip)",
+    default=False,
+)
 @click.argument("source", nargs=1, type=click.Path(exists=True, readable=True, file_okay=False, dir_okay=True))
 @click.argument(
     "destinations", nargs=-1, type=click.Path(exists=True, readable=True, writable=True, file_okay=False, dir_okay=True)
 )
-def cli(overwrite: bool, verify: bool, source: str, destinations: List[str]):
+def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destinations: List[str]):
     """
     o/COPY by OTTOMATIC
 
@@ -46,7 +51,13 @@ def cli(overwrite: bool, verify: bool, source: str, destinations: List[str]):
         length *= 2
     with click.progressbar(length=length, item_show_func=lambda name: name) as bar:
         start = time.time()
-        copy_and_seal(Path(source), [Path(d) for d in destinations], overwrite=overwrite, verify=verify)
+        copy_and_seal(
+            Path(source),
+            [Path(d) for d in destinations],
+            overwrite=overwrite,
+            verify=verify,
+            skip_existing=skip_existing,
+        )
 
         # Only update the progress bar every 3%
         progress = 0

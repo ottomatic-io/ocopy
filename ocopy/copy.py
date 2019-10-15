@@ -67,7 +67,9 @@ def copy(src_file: Path, destinations: List[Path], chunk_size: int = 1024 * 1024
     return x.hexdigest()
 
 
-def copytree(source: Path, destinations: List[Path], overwrite=False, verify=True) -> List[FileInfo]:
+def copytree(
+    source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False
+) -> List[FileInfo]:
     """Based on shutil.copytree"""
 
     class Error(Exception):
@@ -78,16 +80,20 @@ def copytree(source: Path, destinations: List[Path], overwrite=False, verify=Tru
     for d in destinations:
         d.mkdir(parents=True, exist_ok=True)
 
+    ignored_files = ['.DS_Store']
+
     file_infos = []
     errors = []
 
-    for src_path in source.glob('*'):
+    for src_path in source.glob("*"):
+        if src_path.name in ignored_files:
+            continue
         dst_paths = [d / src_path.name for d in destinations]
         try:
             if src_path.is_dir():
-                file_infos += copytree(src_path, dst_paths, overwrite=overwrite, verify=verify)
+                file_infos += copytree(src_path, dst_paths, overwrite, verify, skip_existing)
             else:
-                file_hash = verified_copy(src_path, dst_paths, overwrite=overwrite, verify=verify)
+                file_hash = verified_copy(src_path, dst_paths, overwrite, verify, skip_existing)
                 stat = src_path.stat()
                 file_infos.append(FileInfo(src_path, file_hash, stat.st_size, stat.st_mtime))
 
@@ -107,7 +113,7 @@ def copytree(source: Path, destinations: List[Path], overwrite=False, verify=Tru
     return file_infos
 
 
-def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, verify=True) -> str:
+def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False) -> str:
     """
     Copies one file to multiple destinations.
 
@@ -115,34 +121,46 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
     - Calculates checksum of source during copy
     - Re-Reads source and all destinations and make sure all checksums match
     """
-    if not overwrite:
-        for d in destinations:
-            if d.exists():
+    to_do_destinations = destinations
+
+    for d in destinations:
+        if d.exists():
+            if (
+                skip_existing
+                and src_file.stat().st_size == d.stat().st_size
+                and src_file.stat().st_mtime == d.stat().st_mtime
+            ):
+                to_do_destinations.remove(d)
+            elif not overwrite:
                 raise FileExistsError(f"{d.as_posix()} exists!")
 
-    tmp_destinations = [d.with_name(d.name + ".copy_in_progress") for d in destinations]
-    file_hash = copy(src_file, tmp_destinations)
+    if to_do_destinations:
+        tmp_destinations = [d.with_name(d.name + ".copy_in_progress") for d in to_do_destinations]
+        file_hash = copy(src_file, tmp_destinations)
 
-    # Verify source and destinations
-    if not verify or file_hash == multi_xxhash_check(tmp_destinations + [src_file]):
-        for tmp in tmp_destinations:
-            tmp.rename(tmp.with_name(tmp.name.replace(".copy_in_progress", "")))
-        return file_hash
+        # Verify source and destinations
+        if not verify or file_hash == multi_xxhash_check(tmp_destinations + [src_file]):
+            for tmp in tmp_destinations:
+                tmp.rename(tmp.with_name(tmp.name.replace(".copy_in_progress", "")))
+            return file_hash
+        else:
+            for tmp in tmp_destinations:
+                tmp.unlink()
+
+            raise CopyFailedException(src_file)
     else:
-        for tmp in tmp_destinations:
-            tmp.unlink()
-
-        raise CopyFailedException(src_file)
+        return "skipped"
 
 
 @threaded
-def copy_and_seal(source: Path, destinations: List[Path], overwrite=False, verify=True):
+def copy_and_seal(source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False):
     destinations = [d / source.name for d in destinations]
 
     start = datetime.datetime.utcnow()
-    file_infos = copytree(source, destinations, overwrite=overwrite, verify=verify)
+    file_infos = copytree(source, destinations, overwrite=overwrite, verify=verify, skip_existing=skip_existing)
 
-    write_mhl(destinations, file_infos, source, start)
-    write_xxhash_summary(destinations, file_infos)
+    if not skip_existing:
+        write_mhl(destinations, file_infos, source, start)
+        write_xxhash_summary(destinations, file_infos)
 
-    progress_queue.put(('finished', -1))
+    progress_queue.put(("finished", -1))
