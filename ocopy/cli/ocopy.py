@@ -16,7 +16,7 @@ from ocopy.utils import folder_size
 @click.version_option(prog_name="o/COPY")
 @click.option(
     "--overwrite/--dont-overwrite",
-    help="Allow overwriting of destination files (defaults to --dont-overwrite",
+    help="Allow overwriting of destination files (defaults to --dont-overwrite)",
     default=False,
 )
 @click.option(
