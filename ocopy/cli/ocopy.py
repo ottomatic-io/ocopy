@@ -18,7 +18,7 @@ from ocopy.utils import folder_size
 )
 @click.option(
     "--verify/--dont-verify",
-    help="Verify copy by re-calculating the xxHash of the source and all destinations (defaults to --verify",
+    help="Verify copy by re-calculating the xxHash of the source and all destinations (defaults to --verify)",
     default=True,
 )
 @click.argument(
