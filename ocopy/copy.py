@@ -137,6 +137,8 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
 
 @threaded
 def copy_and_seal(source: Path, destinations: List[Path], overwrite=False, verify=True):
+    destinations = [d / source.name for d in destinations]
+
     start = datetime.datetime.utcnow()
     file_infos = copytree(source, destinations, overwrite=overwrite, verify=verify)
 
