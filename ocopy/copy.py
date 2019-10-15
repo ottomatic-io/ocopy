@@ -94,7 +94,7 @@ def copy_threaded(src_file: Path, destinations: List[Path], chunk_size: int = 10
     return x.hexdigest()
 
 
-def copytree(source: Path, destinations: List[Path], overwrite=False) -> List[FileInfo]:
+def copytree(source: Path, destinations: List[Path], overwrite=False, verify=True) -> List[FileInfo]:
     """Based on shutil.copytree"""
 
     class Error(Exception):
@@ -112,9 +112,9 @@ def copytree(source: Path, destinations: List[Path], overwrite=False) -> List[Fi
         dst_paths = [d / src_path.name for d in destinations]
         try:
             if src_path.is_dir():
-                file_infos += copytree(src_path, dst_paths, overwrite=overwrite)
+                file_infos += copytree(src_path, dst_paths, overwrite=overwrite, verify=verify)
             else:
-                file_hash = verified_copy(src_path, dst_paths, overwrite=overwrite)
+                file_hash = verified_copy(src_path, dst_paths, overwrite=overwrite, verify=verify)
                 stat = src_path.stat()
                 file_infos.append(FileInfo(src_path, file_hash, stat.st_size, stat.st_mtime))
 
@@ -134,7 +134,7 @@ def copytree(source: Path, destinations: List[Path], overwrite=False) -> List[Fi
     return file_infos
 
 
-def verified_copy(src_file: Path, destinations: List[Path], overwrite=False) -> str:
+def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, verify=True) -> str:
     """
     Copies one file to multiple destinations.
 
@@ -154,7 +154,7 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False) -> 
     file_hash = copy_threaded(src_file, tmp_destinations)
 
     # Verify source and destinations
-    if file_hash == multi_xxhash_check(tmp_destinations + [src_file]):
+    if not verify or file_hash == multi_xxhash_check(tmp_destinations + [src_file]):
         for tmp in tmp_destinations:
             tmp.rename(tmp.with_name(tmp.name.replace(".copy_in_progress", "")))
         return file_hash
@@ -166,9 +166,9 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False) -> 
 
 
 @threaded
-def copy_and_seal(source: Path, destinations: List[Path], overwrite=False):
+def copy_and_seal(source: Path, destinations: List[Path], overwrite=False, verify=True):
     start = datetime.datetime.utcnow()
-    file_infos = copytree(source, destinations, overwrite=overwrite)
+    file_infos = copytree(source, destinations, overwrite=overwrite, verify=verify)
 
     write_mhl(destinations, file_infos, source, start)
     write_xxhash_summary(destinations, file_infos)

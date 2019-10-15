@@ -16,6 +16,11 @@ from ocopy.utils import folder_size
     help="Allow overwriting of destination files (defaults to --dont-overwrite",
     default=False,
 )
+@click.option(
+    "--verify/--dont-verify",
+    help="Verify copy by re-calculating the xxHash of the source and all destinations (defaults to --verify",
+    default=True,
+)
 @click.argument(
     "source",
     nargs=1,
@@ -28,18 +33,19 @@ from ocopy.utils import folder_size
         exists=True, readable=True, writable=True, file_okay=False, dir_okay=True
     ),
 )
-def cli(overwrite: bool, source: str, destinations: List[str]):
+def cli(overwrite: bool, verify: bool, source: str, destinations: List[str]):
     """
     Copy SOURCE (file or directory) to DESTINATIONS
     """
-    size = folder_size(source)
-    total_done = 0
     click.echo(f"Copying {source} to {', '.join(destinations)}")
 
-    with click.progressbar(length=size * 2, item_show_func=lambda name: name) as bar:
+    size = folder_size(source)
+    if verify:
+        size *= 2
+    with click.progressbar(length=size, item_show_func=lambda name: name) as bar:
         start = time.time()
         # file_infos = copytree(source, destinations, overwrite=overwrite)
-        copy_and_seal(Path(source), [Path(d) for d in destinations], overwrite=overwrite)
+        copy_and_seal(Path(source), [Path(d) for d in destinations], overwrite=overwrite, verify=verify)
 
         while True:
             file_path, done = progress_queue.get(timeout=300)
