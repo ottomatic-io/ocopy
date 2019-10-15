@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import shutil
+import sys
 import time
 from pathlib import Path
 from typing import List
@@ -11,6 +13,7 @@ from ocopy.utils import folder_size
 
 
 @click.command()
+@click.version_option(prog_name="o/COPY")
 @click.option(
     "--overwrite/--dont-overwrite",
     help="Allow overwriting of destination files (defaults to --dont-overwrite",
@@ -21,25 +24,23 @@ from ocopy.utils import folder_size
     help="Verify copy by re-calculating the xxHash of the source and all destinations (defaults to --verify)",
     default=True,
 )
+@click.argument("source", nargs=1, type=click.Path(exists=True, readable=True, file_okay=False, dir_okay=True))
 @click.argument(
-    "source",
-    nargs=1,
-    type=click.Path(exists=True, readable=True, file_okay=False, dir_okay=True),
-)
-@click.argument(
-    "destinations",
-    nargs=-1,
-    type=click.Path(
-        exists=True, readable=True, writable=True, file_okay=False, dir_okay=True
-    ),
+    "destinations", nargs=-1, type=click.Path(exists=True, readable=True, writable=True, file_okay=False, dir_okay=True)
 )
 def cli(overwrite: bool, verify: bool, source: str, destinations: List[str]):
     """
-    Copy SOURCE (file or directory) to DESTINATIONS
-    """
-    click.echo(f"Copying {source} to {', '.join(destinations)}")
+    o/COPY by OTTOMATIC
 
+    Copy SOURCE directory to DESTINATIONS
+    """
     size = folder_size(source)
+    for destination in destinations:
+        if shutil.disk_usage(destination).free < size:
+            click.secho(f"{destination} does not have enough free space.", fg="red")
+            sys.exit(1)
+    click.secho(f"Copying {source} to {', '.join(destinations)}", fg="green")
+
     length = size
     if verify:
         length *= 2
@@ -55,7 +56,7 @@ def cli(overwrite: bool, verify: bool, source: str, destinations: List[str]):
             file_path, done = progress_queue.get(timeout=300)
             bar.current_item = Path(file_path).name
 
-            if file_path == 'finished':
+            if file_path == "finished":
                 bar.finish()
                 bar.render_progress()
                 break
@@ -66,7 +67,7 @@ def cli(overwrite: bool, verify: bool, source: str, destinations: List[str]):
                 progress = 0
 
         stop = time.time()
-        print(f"\n{size / 1000 / 1000 / (stop - start):.2f} MB/s")
+        click.echo(f"\n{size / 1000 / 1000 / (stop - start):.2f} MB/s")
 
 
 if __name__ == "__main__":
