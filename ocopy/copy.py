@@ -7,6 +7,7 @@ from threading import Thread
 from typing import List
 
 import xxhash
+
 from ocopy.file_info import FileInfo
 from ocopy.hash import multi_xxhash_check, write_xxhash_summary
 from ocopy.mhl import write_mhl
@@ -22,44 +23,16 @@ def copy(src_file: Path, destinations: List[Path], chunk_size: int = 1024 * 1024
     """
     Copies one file to multiple destinations chunk by chunk while calculating the checksum
     """
-    destination_handles = [open(d, "wb") for d in destinations]
-
-    x = xxhash.xxh64()
-
-    with open(src_file, "rb") as f:
-        while True:
-            chunk = f.read(chunk_size)
-            if not chunk:
-                break
-            for d in destination_handles:
-                d.write(chunk)
-
-            progress_queue.put((src_file, len(chunk)))
-
-            # TODO: generate checksum while writing the file
-            x.update(chunk)
-
-    for d in destination_handles:
-        d.close()
-
-    for d in destinations:
-        copystat(src_file, d)
-
-    return x.hexdigest()
-
-
-def copy_threaded(src_file: Path, destinations: List[Path], chunk_size: int = 1024 * 1024) -> str:
-    queues = [Queue() for _ in destinations]
+    queues = [Queue(maxsize=10) for _ in destinations]
 
     def writer(queue: Queue, file_path: Path):
         with open(file_path, "wb") as dest_f:
-            done = 0
             while True:
                 write_chunk = queue.get()
                 if not write_chunk:
                     queue.task_done()
                     break
-                done += dest_f.write(write_chunk)
+                dest_f.write(write_chunk)
                 queue.task_done()
 
     writers = [Thread(target=writer, args=(queues[i], d)) for i, d in enumerate(destinations)]
@@ -148,10 +121,7 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
                 raise FileExistsError(f"{d.as_posix()} exists!")
 
     tmp_destinations = [d.with_name(d.name + ".copy_in_progress") for d in destinations]
-
-    # FIXME: Decide which one to use
-    # file_hash = copy(src_file, tmp_destinations)
-    file_hash = copy_threaded(src_file, tmp_destinations)
+    file_hash = copy(src_file, tmp_destinations)
 
     # Verify source and destinations
     if not verify or file_hash == multi_xxhash_check(tmp_destinations + [src_file]):

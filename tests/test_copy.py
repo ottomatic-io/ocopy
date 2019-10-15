@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ocopy.copy import copy, copy_threaded
+from ocopy.copy import copy
 from ocopy.hash import get_hash
 from ocopy.utils import folder_size
 
@@ -40,6 +40,3 @@ def test_copy(tmpdir):
     for d in destinations:
         d.remove()
     assert folder_size(tmpdir) == file_size
-
-    assert copy_threaded(src_file, destinations) == '6878668a929c42c1'
-    assert folder_size(tmpdir) == file_size * 4
