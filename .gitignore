@@ -8,3 +8,4 @@ testdir*
 *.egg-info
 build
 dist
+pip-wheel-metadata/
