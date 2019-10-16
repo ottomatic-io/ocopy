@@ -1,7 +1,6 @@
 import datetime
 import getpass
 import os
-import pwd
 from _socket import gethostname
 from pathlib import Path
 from typing import List
@@ -9,6 +8,7 @@ from typing import List
 from lxml import etree
 from lxml.builder import E
 from ocopy.file_info import FileInfo
+from ocopy.utils import get_user_display_name
 
 
 def file_info2mhl_hash(file_info: FileInfo, source: Path):
@@ -30,7 +30,7 @@ def create_mhl(start: datetime):
     finish = datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
     new_mhl = E.hashlist(
         E.creatorinfo(
-            E.name(pwd.getpwuid(os.getuid()).pw_gecos),
+            E.name(get_user_display_name()),
             E.username(getpass.getuser()),
             E.hostname(gethostname()),
             E.tool("o/COPY"),
