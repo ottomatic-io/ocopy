@@ -3,15 +3,18 @@ from pathlib import Path
 
 from ocopy.copy import copy, copytree
 from ocopy.hash import get_hash
+from ocopy.progress import progress_queue
 from ocopy.utils import folder_size
 
 
 def test_get_hash(tmpdir):
-    assert get_hash(Path("/dev/null")) == "ef46db3751d8e999"
-
     p = Path(tmpdir) / "test-äöüàéè.txt"
-    p.write_text("éèà" * 1024 * 1024 * 16)
-    assert get_hash(p) == "41568b54725a72dd"
+
+    p.write_text("")
+    assert get_hash(p) == "ef46db3751d8e999"
+
+    p.write_text("X" * 1024 * 1024 * 16)
+    assert get_hash(p) == "75ba28003b6bfc18"
 
 
 def test_folder_size(tmpdir):
@@ -73,3 +76,6 @@ def test_copytree(tmpdir):
     for dest in destinations:
         dest_hashes = [get_hash(p) for p in dest.glob("**/*") if p.is_file()]
         assert source_hashes == dest_hashes
+
+    # py.test will hang on windows if we don't close the queue
+    progress_queue.close()
