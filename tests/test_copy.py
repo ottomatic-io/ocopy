@@ -1,42 +1,75 @@
+import random
 from pathlib import Path
 
-from ocopy.copy import copy
+from ocopy.copy import copy, copytree
 from ocopy.hash import get_hash
 from ocopy.utils import folder_size
 
 
 def test_get_hash(tmpdir):
-    assert get_hash(Path('/dev/null')) == 'ef46db3751d8e999'
+    assert get_hash(Path("/dev/null")) == "ef46db3751d8e999"
 
-    p = Path(tmpdir) / 'test-äöüàéè.txt'
-    p.write_text('éèà' * 1024 * 1024 * 16)
-    assert get_hash(p) == '41568b54725a72dd'
+    p = Path(tmpdir) / "test-äöüàéè.txt"
+    p.write_text("éèà" * 1024 * 1024 * 16)
+    assert get_hash(p) == "41568b54725a72dd"
 
 
 def test_folder_size(tmpdir):
-    p = tmpdir.mkdir('bla') / 'test-äöüàéè.txt'
-    p.write('asdf' * 8)
+    p = tmpdir.mkdir("bla") / "test-äöüàéè.txt"
+    p.write("asdf" * 8)
 
-    p = tmpdir / 'test2-äöüàéè.txt'
-    p.write('xxxx' * 4)
+    p = tmpdir / "test2-äöüàéè.txt"
+    p.write("xxxx" * 4)
 
     assert folder_size(tmpdir) == 48
 
 
 def test_copy(tmpdir):
-    src_file = tmpdir / 'test-äöüàéè.txt'
+    src_file = tmpdir / "test-äöüàéè.txt"
     file_size = 1024 * 1024 * 16
-    src_file.write('x' * file_size)
+    src_file.write("x" * file_size)
 
-    destinations = ['dst_1', 'dst_2', 'dst_3']
+    destinations = ["dst_1", "dst_2", "dst_3"]
     for d in destinations:
         tmpdir.mkdir(d)
 
-    destinations = [tmpdir / d / 'test' for d in destinations]
+    destinations = [tmpdir / d / "test" for d in destinations]
 
-    assert copy(src_file, destinations) == '6878668a929c42c1'
+    assert copy(src_file, destinations) == "6878668a929c42c1"
     assert folder_size(tmpdir) == file_size * 4
 
     for d in destinations:
         d.remove()
     assert folder_size(tmpdir) == file_size
+
+
+def test_copytree(tmpdir):
+    tmpdir = Path(tmpdir)
+    src_dir = tmpdir / "src"
+    for card_number in range(1, 3):
+        card = src_dir / f"A00{card_number}XXXX"
+        card.mkdir(parents=True)
+
+        for clip_number in range(1, 5):
+            data = random.randint(0, 100) * b"X"
+            (card / f"A00{card_number}C00{clip_number}_XXXX_XXXX.mov").write_bytes(data)
+
+    destinations = [tmpdir / f"dst_{i}" for i in range(1, 4)]
+    for d in destinations:
+        d.mkdir()
+
+    file_infos = copytree(src_dir, destinations)
+
+    source_files = [f for f in src_dir.glob("**/*") if f.is_file()]
+    assert len(file_infos) == len(source_files)
+    assert (
+        folder_size(src_dir)
+        == folder_size(destinations[0])
+        == folder_size(destinations[1])
+        == folder_size(destinations[2])
+    )
+
+    source_hashes = [get_hash(p) for p in source_files]
+    for dest in destinations:
+        dest_hashes = [get_hash(p) for p in dest.glob("**/*") if p.is_file()]
+        assert source_hashes == dest_hashes
