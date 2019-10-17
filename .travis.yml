@@ -29,3 +29,11 @@ install:
 
 script:
   - pipenv run test
+
+deploy:
+  provider: pypi
+  user: "__token__"
+  password:
+    secure: ucKIfGZwGiFYNOzzWJrz783SEjYecsVbKdSGs9XUDucY5nW3D0LTxf4YxZ8WiWbb3fCuWZH4dU9EHELLxEfDz4BlwVPAFbuyfnEOvVcyset2ruI8Xv6cir/AAfNpr84nNwly7N2MRkCXFS+lL4rUnC8Ge4XMBAK0ENP7TpLUSM4uTM3oLROfTdw0Y2IeTnXVjJQtzyXNFZaqrPUozLGMcPfzC7mFimejmJ9R2ZBXjphQ4OLTx2VWm5iKfjJSGbljFAsv+TmKU35vSLYKsh7Tar3bXWpo4AT0JNNt//jQudC7y+zgovGnbrjHkSU5aqS0Ad4gLrrV2Yc6VrKtq7Lg7Hhr765D2LzCsb8kexgx7FkYbPi8YYC7Bfy9m8Q90us5nG0q0ovtcGJHrs1p4LtpwUgzMhEim60lC1IL7Ql0q2qrffmfPQdiZHBIbgsmXS0XVfwdX0xLl44sI9KD5hph6wtpzUasDvWFBaAJ6XA/ult/FxKIdQ4vzjual1Hco5ZOE+2OKxnHRtKZcffFSs29+b7AHENOBWIPchmCU74EqHY76DizibDaAWGw3NqrvZOYVSiOhAgkVKVDVp/lVZDNu4buDiyELIWZrMMupvvAi0U+yDwtkp4CexSCsJbd6+f8twQVve2yKbDg2ZKBpL5dQ2LnkGQTZRyGwnaGO0BfwCo=
+  on:
+    tags: true
