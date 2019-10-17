@@ -9,7 +9,7 @@ import click
 
 from ocopy.copy import copy_and_seal
 from ocopy.progress import progress_queue
-from ocopy.utils import folder_size
+from ocopy.utils import folder_size, get_mount
 
 
 @click.command()
@@ -46,6 +46,10 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destina
             sys.exit(1)
     click.secho(f"Copying {source} to {', '.join(destinations)}", fg="green")
 
+    destinations = [Path(d) for d in destinations]
+    if len(destinations) != len({get_mount(d) for d in destinations}):
+        click.secho(f"Destinations should all be on different drives.", fg="yellow")
+
     length = size
     if verify:
         length *= 2
@@ -53,7 +57,7 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destina
         start = time.time()
         copy_and_seal(
             Path(source),
-            [Path(d) for d in destinations],
+            destinations,
             overwrite=overwrite,
             verify=verify,
             skip_existing=skip_existing,

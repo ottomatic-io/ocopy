@@ -1,5 +1,6 @@
 import os
 import platform
+from pathlib import Path
 from threading import Thread
 
 
@@ -39,3 +40,11 @@ def get_user_display_name() -> str:
         name_buffer = ctypes.create_unicode_buffer(size.contents.value)
         get_user_name_ex(name_display, name_buffer, size)
         return name_buffer.value
+
+
+def get_mount(path: Path) -> Path:
+    # pathlib.Path.is_mount is not implemented on Windows
+    while not os.path.ismount(path) and path.parents:
+        path = path.parent
+
+    return path
