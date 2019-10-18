@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ocopy.copy import copy, copytree, copy_and_seal
 from ocopy.hash import get_hash
-from ocopy.progress import progress_queue
+from ocopy.progress import PROGRESS_QUEUE
 from ocopy.utils import folder_size
 
 
@@ -96,7 +96,7 @@ def test_copy_and_seal(tmpdir):
     copy_and_seal(src_dir, destinations)
 
     while True:
-        file_path, done = progress_queue.get(timeout=1)
+        file_path, done = PROGRESS_QUEUE.get(timeout=5)
         if file_path == "finished":
             break
 
@@ -104,4 +104,4 @@ def test_copy_and_seal(tmpdir):
         assert len(list((dest / "src").glob("*.mhl"))) == 1
         assert len((dest / "src" / "xxHash.txt").read_text().splitlines()) == 8
 
-    progress_queue.close()
+    PROGRESS_QUEUE.close()

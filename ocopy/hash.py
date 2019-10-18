@@ -5,7 +5,7 @@ from typing import List
 
 import xxhash
 from ocopy.file_info import FileInfo
-from ocopy.progress import progress_queue
+from ocopy.progress import PROGRESS_QUEUE
 
 
 def get_hash(file_path: Path, total_files: int = 1) -> str:
@@ -14,7 +14,7 @@ def get_hash(file_path: Path, total_files: int = 1) -> str:
     with open(file_path, "rb") as f:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
             x.update(chunk)
-            progress_queue.put(
+            PROGRESS_QUEUE.put(
                 (
                     file_path.with_name(file_path.name.replace('.copy_in_progress', '') + ' (verify)'),
                     len(chunk) / total_files,

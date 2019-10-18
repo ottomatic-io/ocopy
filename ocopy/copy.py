@@ -11,7 +11,7 @@ import xxhash
 from ocopy.file_info import FileInfo
 from ocopy.hash import multi_xxhash_check, write_xxhash_summary
 from ocopy.mhl import write_mhl
-from ocopy.progress import progress_queue
+from ocopy.progress import PROGRESS_QUEUE
 from ocopy.utils import threaded
 
 
@@ -53,7 +53,7 @@ def copy(src_file: Path, destinations: List[Path], chunk_size: int = 1024 * 1024
                 break
 
             x.update(chunk)
-            progress_queue.put((src_file, len(chunk)))
+            PROGRESS_QUEUE.put((src_file, len(chunk)))
 
     for q in queues:
         q.join()
@@ -163,4 +163,4 @@ def copy_and_seal(source: Path, destinations: List[Path], overwrite=False, verif
         write_mhl(destinations, file_infos, source, start)
         write_xxhash_summary(destinations, file_infos)
 
-    progress_queue.put(("finished", -1))
+    PROGRESS_QUEUE.put(("finished", -1))

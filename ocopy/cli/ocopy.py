@@ -8,7 +8,7 @@ from typing import List
 import click
 
 from ocopy.copy import copy_and_seal
-from ocopy.progress import progress_queue
+from ocopy.progress import PROGRESS_QUEUE
 from ocopy.utils import folder_size, get_mount
 
 
@@ -68,7 +68,7 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destina
         step = length / 33
 
         while True:
-            file_path, done = progress_queue.get(timeout=300)
+            file_path, done = PROGRESS_QUEUE.get(timeout=300)
             bar.current_item = Path(file_path).name
 
             if file_path == "finished":

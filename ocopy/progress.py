@@ -1,3 +1,3 @@
 import multiprocessing
 
-progress_queue = multiprocessing.Queue()
+PROGRESS_QUEUE = multiprocessing.Queue()
