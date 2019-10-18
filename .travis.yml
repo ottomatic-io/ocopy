@@ -16,8 +16,11 @@ jobs:
       language: shell
       before_install:
         - choco install python --version 3.7.4
+        - choco install codecov
         - python -m pip install --upgrade pip
       env: PATH=/c/Python37:/c/Python37/Scripts:$PATH
+      after_success:
+        - codecov -f coverage.xml
     - stage: deploy
       script: skip
       python: 3.7
@@ -39,4 +42,7 @@ install:
 
 script:
   - pipenv run test
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
 

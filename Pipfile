@@ -5,6 +5,7 @@ verify_ssl = true
 
 [dev-packages]
 pytest = "*"
+pytest-cov = "*"
 
 [packages]
 lxml = "*"
@@ -15,4 +16,4 @@ click = "*"
 python_version = "3.7"
 
 [scripts]
-test = "py.test -v"
+test = "py.test --cov-report=xml --cov=ocopy -v"
