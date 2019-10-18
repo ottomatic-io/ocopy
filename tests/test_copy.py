@@ -1,5 +1,7 @@
+import os
 import random
 from pathlib import Path
+from shutil import copystat
 
 import pytest
 
@@ -79,13 +81,30 @@ def test_copytree(tmpdir):
         dest_hashes = [get_hash(p) for p in dest.glob("**/*") if p.is_file()]
         assert source_hashes == dest_hashes
 
-    destination = Path(tmpdir) / 'dest_x'
-    destination.mkdir(parents=True)
-    (src_dir / "existing_file").write_text("foo")
-    (destination / "existing_file").write_text("foo")
+    destination = Path(tmpdir) / "dest_x"
+    src_folder = src_dir / "XYZ"
+    dst_folder = destination / "XYZ"
+    src_folder.mkdir()
+    dst_folder.mkdir(parents=True)
 
+    (src_folder / "existing_file").write_text("foo")
+    (dst_folder / "existing_file").write_text("foo")
+
+    # FIXME: Expect FileExistsError
     with pytest.raises(Exception):
         copytree(src_dir, [destination])
+
+    # Only skip when the modification times match
+    os.utime((dst_folder / "existing_file"), (0, 0))
+    with pytest.raises(Exception):
+        copytree(src_dir, [destination], skip_existing=True)
+
+    # Make the mtime match
+    copystat(src_folder / "existing_file", dst_folder / "existing_file")
+    copytree(src_dir, [destination], skip_existing=True)
+
+    # Just overwrite existing files
+    copytree(src_dir, [destination], overwrite=True)
 
 
 def test_copy_and_seal(tmpdir):

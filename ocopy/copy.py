@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import datetime
+from math import floor
 from pathlib import Path
 from queue import Queue
 from shutil import copystat
@@ -128,7 +129,7 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
             if (
                 skip_existing
                 and src_file.stat().st_size == d.stat().st_size
-                and src_file.stat().st_mtime == d.stat().st_mtime
+                and floor(src_file.stat().st_mtime) == floor(d.stat().st_mtime)
             ):
                 to_do_destinations.remove(d)
             elif not overwrite:
