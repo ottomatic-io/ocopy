@@ -132,7 +132,9 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
                 and floor(src_file.stat().st_mtime) == floor(d.stat().st_mtime)
             ):
                 to_do_destinations.remove(d)
-            elif not overwrite:
+            elif overwrite:
+                d.unlink()
+            else:
                 raise FileExistsError(f"{d.as_posix()} exists!")
 
     if to_do_destinations:
