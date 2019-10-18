@@ -1,6 +1,8 @@
 import random
 from pathlib import Path
 
+import pytest
+
 from ocopy.copy import copy, copytree, copy_and_seal
 from ocopy.hash import get_hash
 from ocopy.progress import PROGRESS_QUEUE
@@ -77,6 +79,14 @@ def test_copytree(tmpdir):
         dest_hashes = [get_hash(p) for p in dest.glob("**/*") if p.is_file()]
         assert source_hashes == dest_hashes
 
+    destination = Path(tmpdir) / 'dest_x'
+    destination.mkdir(parents=True)
+    (src_dir / "existing_file").write_text("foo")
+    (destination / "existing_file").write_text("foo")
+
+    with pytest.raises(Exception):
+        copytree(src_dir, [destination])
+
 
 def test_copy_and_seal(tmpdir):
     tmpdir = Path(tmpdir)
@@ -89,8 +99,8 @@ def test_copy_and_seal(tmpdir):
             data = random.randint(0, 100) * b"X"
             (card / f"A00{card_number}C00{clip_number}_XXXX_XXXX.mov").write_bytes(data)
 
-    (src_dir / '.DS_Store').write_text("")
-    (src_dir / '.some_hidden_file').write_text("")
+    (src_dir / ".DS_Store").write_text("")
+    (src_dir / ".some_hidden_file").write_text("")
 
     destinations = [tmpdir / f"dst_{i}" for i in range(1, 4)]
     for d in destinations:
@@ -106,7 +116,7 @@ def test_copy_and_seal(tmpdir):
     for dest in destinations:
         assert len(list((dest / "src").glob("*.mhl"))) == 1
         assert len((dest / "src" / "xxHash.txt").read_text().splitlines()) == 9
-        assert '.DS_Store' not in [e.name for e in dest.glob("**/*")]
-        assert '.some_hidden_file' in [e.name for e in dest.glob("**/*")]
+        assert ".DS_Store" not in [e.name for e in dest.glob("**/*")]
+        assert ".some_hidden_file" in [e.name for e in dest.glob("**/*")]
 
     PROGRESS_QUEUE.close()
