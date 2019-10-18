@@ -89,6 +89,9 @@ def test_copy_and_seal(tmpdir):
             data = random.randint(0, 100) * b"X"
             (card / f"A00{card_number}C00{clip_number}_XXXX_XXXX.mov").write_bytes(data)
 
+    (src_dir / '.DS_Store').write_text("")
+    (src_dir / '.some_hidden_file').write_text("")
+
     destinations = [tmpdir / f"dst_{i}" for i in range(1, 4)]
     for d in destinations:
         d.mkdir()
@@ -102,6 +105,8 @@ def test_copy_and_seal(tmpdir):
 
     for dest in destinations:
         assert len(list((dest / "src").glob("*.mhl"))) == 1
-        assert len((dest / "src" / "xxHash.txt").read_text().splitlines()) == 8
+        assert len((dest / "src" / "xxHash.txt").read_text().splitlines()) == 9
+        assert '.DS_Store' not in [e.name for e in dest.glob("**/*")]
+        assert '.some_hidden_file' in [e.name for e in dest.glob("**/*")]
 
     PROGRESS_QUEUE.close()
