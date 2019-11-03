@@ -30,10 +30,10 @@ def multi_xxhash_check(filenames: List[Path]) -> str:
             file_hash for file_hash in executor.map(partial(get_hash, total_files=len(filenames)), filenames)
         }
 
-    return unique_file_hashes.pop() if len(unique_file_hashes) == 1 else 'hashes_do_not_match'
+    return unique_file_hashes.pop() if len(unique_file_hashes) == 1 else "hashes_do_not_match"
 
 
 def write_xxhash_summary(destinations: List[Path], file_infos: List[FileInfo]):
-    xxhash_info = '\n'.join(f"{f.file_hash} {Path(f.source).name}" for f in file_infos) + '\n'
+    xxhash_info = "\n".join(f"{f.file_hash} {Path(f.source).name}" for f in file_infos) + "\n"
     for d in destinations:
-        (d / 'xxHash.txt').write_text(xxhash_info)
+        (d / "xxHash.txt").write_text(xxhash_info)
