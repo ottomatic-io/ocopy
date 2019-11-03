@@ -225,8 +225,8 @@ class CopyJob(Thread):
                 pass
 
     @property
-    def percent_done(self) -> float:
-        return 100 / self.todo_size * self.total_done
+    def percent_done(self) -> int:
+        return round(100 / self.todo_size * self.total_done)
 
     @property
     def progress(self) -> str:
