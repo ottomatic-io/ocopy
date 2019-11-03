@@ -2,9 +2,10 @@
 import datetime
 from math import floor
 from pathlib import Path
-from queue import Queue
+from queue import Queue, Empty
 from shutil import copystat
 from threading import Thread, Event, currentThread
+from time import sleep
 from typing import List
 
 import xxhash
@@ -13,7 +14,7 @@ from ocopy.file_info import FileInfo
 from ocopy.hash import multi_xxhash_check, write_xxhash_summary
 from ocopy.mhl import write_mhl
 from ocopy.progress import get_progress_queue
-from ocopy.utils import threaded
+from ocopy.utils import threaded, folder_size
 
 
 class CopyFailedException(Exception):
@@ -170,10 +171,6 @@ def copy_and_seal(source: Path, destinations: List[Path], overwrite=False, verif
         write_mhl(destinations, file_infos, source, start)
         write_xxhash_summary(destinations, file_infos)
 
-    progress_queue = get_progress_queue()
-    if progress_queue:
-        progress_queue.put(("finished", -1))
-
 
 def _is_cancelled() -> bool:
     try:
@@ -183,15 +180,17 @@ def _is_cancelled() -> bool:
 
 
 class CopyJob(Thread):
-    progress_queue: Queue
-    _cancel: Event
+    total_size: int
+    total_done: int
+    percent_done: float
+    finished: bool
 
     def __init__(
         self, source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False, auto_start=True
     ):
         super().__init__()
         self.daemon = True
-        self.progress_queue = Queue()
+        self._progress_queue = Queue()
         self._cancel = Event()
 
         self.source = source
@@ -199,6 +198,12 @@ class CopyJob(Thread):
         self.overwrite = overwrite
         self.verify = verify
         self.skip_existing = skip_existing
+
+        self.total_size = folder_size(source)
+        self.todo_size = self.total_size * (2 if self.verify else 1)
+        self.total_done = 0
+        self.current_item = None
+        self.finished = False
 
         if auto_start:
             self.start()
@@ -212,7 +217,24 @@ class CopyJob(Thread):
 
     @threaded
     def _progress_reader(self):
-        pass
+        while not (self.finished or self.cancelled):
+            try:
+                file_path, done = self._progress_queue.get(timeout=5)
+                self.current_item = Path(file_path).name
+                self.total_done += done
+            except Empty:
+                pass
+
+    @property
+    def percent_done(self):
+        return 100 / self.todo_size * self.total_done
+
+    @property
+    def progress(self):
+        for i in range(1, 101):
+            while self.percent_done < i:
+                sleep(0.1)
+            yield self.current_item
 
     def run(self):
         if self.cancelled:
@@ -227,3 +249,5 @@ class CopyJob(Thread):
             verify=self.verify,
             skip_existing=self.skip_existing,
         )
+
+        self.finished = True

@@ -49,33 +49,15 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destina
     if len(destinations) != len({get_mount(d) for d in destinations}):
         click.secho(f"Destinations should all be on different drives.", fg="yellow")
 
-    length = size
-    if verify:
-        length *= 2
-    with click.progressbar(length=length, item_show_func=lambda name: name) as bar:
-        start = time.time()
-        job = CopyJob(Path(source), destinations, overwrite=overwrite, verify=verify, skip_existing=skip_existing)
+    start = time.time()
+    job = CopyJob(Path(source), destinations, overwrite=overwrite, verify=verify, skip_existing=skip_existing)
 
-        # Only update the progress bar every 3%
-        progress = 0
-        step = length / 33
+    with click.progressbar(job.progress, length=100, item_show_func=lambda name: name) as progress:
+        for _ in progress:
+            pass
 
-        while True:
-            file_path, done = job.progress_queue.get(timeout=5)
-            bar.current_item = Path(file_path).name
-
-            if file_path == "finished":
-                bar.finish()
-                bar.render_progress()
-                break
-
-            progress += done
-            if progress >= step:
-                bar.update(progress)
-                progress = 0
-
-        stop = time.time()
-        click.echo(f"\n{size / 1000 / 1000 / (stop - start):.2f} MB/s")
+    stop = time.time()
+    click.echo(f"\n{size / 1000 / 1000 / (stop - start):.2f} MB/s")
 
 
 if __name__ == "__main__":

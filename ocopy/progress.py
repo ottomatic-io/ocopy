@@ -5,6 +5,6 @@ from typing import Optional
 
 def get_progress_queue() -> Optional[Queue]:
     try:
-        return currentThread().progress_queue
+        return currentThread()._progress_queue
     except AttributeError:
         return None

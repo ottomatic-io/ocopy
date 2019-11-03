@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from shutil import copystat
+from time import sleep
 
 import pytest
 
@@ -113,10 +114,8 @@ def test_copy_job(card):
 
     job = CopyJob(src_dir, destinations)
 
-    while True:
-        file_path, done = job.progress_queue.get(timeout=5)
-        if file_path == "finished":
-            break
+    while job.finished is not True:
+        sleep(0.1)
 
     for dest in destinations:
         assert len(list((dest / "src").glob("*.mhl"))) == 1
@@ -129,11 +128,25 @@ def test_copy_job_cancel(card):
     job = CopyJob(src_dir, destinations)
     job.cancel()
 
-    while True:
-        file_path, done = job.progress_queue.get(timeout=5)
-        if file_path == "finished":
-            break
+    while job.finished is not True:
+        sleep(0.1)
+    assert job.finished is True
 
     # Only hash files should be present
     for dest in destinations:
         assert len(list((dest / "src").glob("**/*"))) == 2
+
+
+def test_copy_job_progress(card):
+    src_dir, destinations = card
+
+    job = CopyJob(src_dir, destinations)
+    assert job.finished is False
+
+    # Make sure to get 100 progress updates
+    progress = 0
+    for progress, file_name in enumerate(job.progress, start=1):
+        pass
+
+    assert progress == 100
+    assert job.finished is True
