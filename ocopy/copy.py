@@ -4,7 +4,7 @@ from math import floor
 from pathlib import Path
 from queue import Queue
 from shutil import copystat
-from threading import Thread, Event
+from threading import Thread, Event, currentThread
 from typing import List
 
 import xxhash
@@ -89,6 +89,9 @@ def copytree(
     errors = []
 
     for src_path in source.glob("*"):
+        if _is_cancelled():
+            break
+
         if src_path.name in ignored_files:
             continue
         dst_paths = [d / src_path.name for d in destinations]
@@ -172,6 +175,13 @@ def copy_and_seal(source: Path, destinations: List[Path], overwrite=False, verif
         progress_queue.put(("finished", -1))
 
 
+def _is_cancelled() -> bool:
+    try:
+        return currentThread().cancelled
+    except AttributeError:
+        return False
+
+
 class CopyJob(Thread):
     progress_queue: Queue
     _cancel: Event
@@ -193,6 +203,7 @@ class CopyJob(Thread):
     def cancel(self):
         self._cancel.set()
 
+    @property
     def cancelled(self):
         return self._cancel.isSet()
 
@@ -201,6 +212,9 @@ class CopyJob(Thread):
         pass
 
     def run(self):
+        if self.cancelled:
+            return
+
         self._progress_reader()
 
         copy_and_seal(
