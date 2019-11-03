@@ -130,7 +130,6 @@ def test_copy_job_cancel(card):
 
     while job.finished is not True:
         sleep(0.1)
-    assert job.finished is True
 
     # Only hash files should be present
     for dest in destinations:
@@ -149,4 +148,3 @@ def test_copy_job_progress(card):
         pass
 
     assert progress == 100
-    assert job.finished is True
