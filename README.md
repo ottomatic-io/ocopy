@@ -18,6 +18,11 @@ pip3 install -U ocopy
 
 ## Usage
 
+### CLI
+![cli](images/recording.svg)
+
+### Python
+
 ```python
 import tempfile
 from pathlib import Path

@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="terminal" baseProfile="full" viewBox="0 0 807 166" width="807" version="1.1">
+    <defs>
+        <termtosvg:template_settings xmlns:termtosvg="https://github.com/nbedos/termtosvg">
+            <termtosvg:screen_geometry columns="95" rows="5"/>
+            <termtosvg:animation type="css"/>
+        </termtosvg:template_settings>
+        <style type="text/css" id="generated-style"><![CDATA[#screen {
+                font-family: 'DejaVu Sans Mono', monospace;
+                font-style: normal;
+                font-size: 14px;
+            }
+
+        text {
+            dominant-baseline: text-before-edge;
+            white-space: pre;
+        }
+    
+            :root {
+                --animation-duration: 6659ms;
+            }
+
+            @keyframes roll {
+                0.000%{transform:translateY(0px)}
+1.502%{transform:translateY(-102px)}
+3.003%{transform:translateY(-204px)}
+4.505%{transform:translateY(-306px)}
+6.007%{transform:translateY(-408px)}
+7.509%{transform:translateY(-510px)}
+9.010%{transform:translateY(-612px)}
+10.512%{transform:translateY(-714px)}
+11.999%{transform:translateY(-816px)}
+13.501%{transform:translateY(-918px)}
+15.002%{transform:translateY(-1020px)}
+16.504%{transform:translateY(-1122px)}
+18.021%{transform:translateY(-1224px)}
+19.522%{transform:translateY(-1326px)}
+21.024%{transform:translateY(-1428px)}
+22.526%{transform:translateY(-1530px)}
+24.028%{transform:translateY(-1632px)}
+25.529%{transform:translateY(-1734px)}
+27.031%{transform:translateY(-1836px)}
+28.533%{transform:translateY(-1938px)}
+30.035%{transform:translateY(-2040px)}
+31.536%{transform:translateY(-2142px)}
+33.038%{transform:translateY(-2244px)}
+34.540%{transform:translateY(-2346px)}
+36.041%{transform:translateY(-2448px)}
+37.543%{transform:translateY(-2550px)}
+39.045%{transform:translateY(-2652px)}
+40.547%{transform:translateY(-2754px)}
+42.048%{transform:translateY(-2856px)}
+43.550%{transform:translateY(-2958px)}
+45.052%{transform:translateY(-3060px)}
+46.554%{transform:translateY(-3162px)}
+48.055%{transform:translateY(-3264px)}
+49.557%{transform:translateY(-3366px)}
+51.059%{transform:translateY(-3468px)}
+52.560%{transform:translateY(-3570px)}
+54.062%{transform:translateY(-3672px)}
+55.564%{transform:translateY(-3774px)}
+57.066%{transform:translateY(-3876px)}
+58.567%{transform:translateY(-3978px)}
+60.069%{transform:translateY(-4080px)}
+61.571%{transform:translateY(-4182px)}
+63.073%{transform:translateY(-4284px)}
+64.574%{transform:translateY(-4386px)}
+66.076%{transform:translateY(-4488px)}
+67.578%{transform:translateY(-4590px)}
+69.079%{transform:translateY(-4692px)}
+70.566%{transform:translateY(-4794px)}
+72.068%{transform:translateY(-4896px)}
+73.570%{transform:translateY(-4998px)}
+75.071%{transform:translateY(-5100px)}
+76.573%{transform:translateY(-5202px)}
+78.075%{transform:translateY(-5304px)}
+79.577%{transform:translateY(-5406px)}
+81.078%{transform:translateY(-5508px)}
+82.580%{transform:translateY(-5610px)}
+84.082%{transform:translateY(-5712px)}
+84.983%{transform:translateY(-5814px)}
+100.000%{transform:translateY(-5814px)}
+            }
+
+            #screen_view {
+                animation-duration: 6659ms;
+                animation-iteration-count:infinite;
+                animation-name:roll;
+                animation-timing-function: steps(1,end);
+                animation-fill-mode: forwards;
+            }
+        ]]></style>
+        <style type="text/css" id="user-style">
+            /* gjm8 color theme (source: https://terminal.sexy/) */
+            .foreground {fill: #f8f8f2}
+            .background {fill: #272822}
+            .color0 {fill: #272822}
+            .color1 {fill: #f92672}
+            .color2 {fill: #a6e22e}
+            .color3 {fill: #f4bf75}
+            .color4 {fill: #66d9ef}
+            .color5 {fill: #ae81ff}
+            .color6 {fill: #a1efe4}
+            .color7 {fill: #f8f8f2}
+            .color8 {fill: #75715e}
+            .color9 {fill: #fd971f}
+            .color10 {fill: #383830}
+            .color11 {fill: #49483e}
+            .color12 {fill: #a59f85}
+            .color13 {fill: #f5f4f1}
+            .color14 {fill: #cc6633}
+            .color15 {fill: #f9f8f5}
+        </style>
+    </defs>
+    <rect id="terminalui" class="background" width="100%" height="100%" ry="4.5826941"/>
+    <circle cx="24" cy="23" r="7" class="color1"/>
+    <circle cx="44" cy="23" r="7" class="color3"/>
+    <circle cx="64" cy="23" r="7" class="color2"/>
+    <svg id="screen" width="760" height="85" x="23" y="50" viewBox="0 0 760 85" preserveAspectRatio="xMidYMin slice">
+        <rect class="background" height="100%" width="100%" x="0" y="0"/><defs><g id="g1"><text x="0" textLength="8" class="background"> </text></g><g id="g2"><text x="0" textLength="704" class="foreground">bash-3.2$ ocopy /Volumes/A012XYZ1 /Volumes/MASTER /Volumes/SECONDARY /Volumes/TRANSFER_1</text></g><g id="g3"><text x="0" textLength="664" class="color2">Copying /Volumes/A012XYZ1 to /Volumes/MASTER /Volumes/SECONDARY /Volumes/TRANSFER_1</text></g><g id="g4"><text x="0" textLength="576" class="foreground">  [###---------------------------------]    9%  A012C001_191103_XYZ1.mov</text></g><g id="g5"><text x="0" textLength="576" class="foreground">  [###---------------------------------]   11%  A012C001_191103_XYZ1.mov</text></g><g id="g6"><text x="0" textLength="576" class="foreground">  [####--------------------------------]   12%  A012C001_191103_XYZ1.mov</text></g><g id="g7"><text x="0" textLength="576" class="foreground">  [#####-------------------------------]   14%  A012C001_191103_XYZ1.mov</text></g><g id="g8"><text x="0" textLength="576" class="foreground">  [#####-------------------------------]   16%  A012C001_191103_XYZ1.mov</text></g><g id="g9"><text x="0" textLength="656" class="foreground">  [######------------------------------]   17%  00:00:04  A012C001_191103_XYZ1.mov</text></g><g id="g10"><text x="0" textLength="656" class="foreground">  [######------------------------------]   19%  00:00:04  A012C001_191103_XYZ1.mov</text></g><g id="g11"><text x="0" textLength="656" class="foreground">  [#######-----------------------------]   21%  00:00:04  A012C001_191103_XYZ1.mov</text></g><g id="g12"><text x="0" textLength="656" class="foreground">  [#######-----------------------------]   22%  00:00:04  A012C001_191103_XYZ1.mov</text></g><g id="g13"><text x="0" textLength="656" class="foreground">  [########----------------------------]   24%  00:00:04  A012C001_191103_XYZ1.mov</text></g><g id="g14"><text x="0" textLength="656" class="foreground">  [#########---------------------------]   25%  00:00:04  A012C001_191103_XYZ1.mov</text></g><g id="g15"><text x="0" textLength="656" class="foreground">  [#########---------------------------]   27%  00:00:04  A012C001_191103_XYZ1.mov</text></g><g id="g16"><text x="0" textLength="656" class="foreground">  [##########--------------------------]   28%  00:00:04  A012C001_191103_XYZ1.mov</text></g><g id="g17"><text x="0" textLength="656" class="foreground">  [##########--------------------------]   30%  00:00:04  A012C001_191103_XYZ1.mov</text></g><g id="g18"><text x="0" textLength="656" class="foreground">  [###########-------------------------]   32%  00:00:04  A012C001_191103_XYZ1.mov</text></g><g id="g19"><text x="0" textLength="656" class="foreground">  [###########-------------------------]   33%  00:00:04  A012C001_191103_XYZ1.mov</text></g><g id="g20"><text x="0" textLength="656" class="foreground">  [############------------------------]   35%  00:00:03  A012C001_191103_XYZ1.mov</text></g><g id="g21"><text x="0" textLength="656" class="foreground">  [############------------------------]   36%  00:00:03  A012C001_191103_XYZ1.mov</text></g><g id="g22"><text x="0" textLength="656" class="foreground">  [#############-----------------------]   37%  00:00:03  A012C001_191103_XYZ1.mov</text></g><g id="g23"><text x="0" textLength="656" class="foreground">  [#############-----------------------]   38%  00:00:03  A012C001_191103_XYZ1.mov</text></g><g id="g24"><text x="0" textLength="656" class="foreground">  [##############----------------------]   40%  00:00:03  A012C001_191103_XYZ1.mov</text></g><g id="g25"><text x="0" textLength="656" class="foreground">  [###############---------------------]   42%  00:00:03  A012C001_191103_XYZ1.mov</text></g><g id="g26"><text x="0" textLength="656" class="foreground">  [###############---------------------]   43%  00:00:03  A012C001_191103_XYZ1.mov</text></g><g id="g27"><text x="0" textLength="656" class="foreground">  [################--------------------]   45%  00:00:03  A012C001_191103_XYZ1.mov</text></g><g id="g28"><text x="0" textLength="656" class="foreground">  [################--------------------]   46%  00:00:03  A012C001_191103_XYZ1.mov</text></g><g id="g29"><text x="0" textLength="656" class="foreground">  [#################-------------------]   48%  00:00:03  A012C001_191103_XYZ1.mov</text></g><g id="g30"><text x="0" textLength="656" class="foreground">  [#################-------------------]   49%  00:00:03  A012C001_191103_XYZ1.mov</text></g><g id="g31"><text x="0" textLength="728" class="foreground">  [##################------------------]   51%  00:00:03  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g32"><text x="0" textLength="728" class="foreground">  [##################------------------]   52%  00:00:02  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g33"><text x="0" textLength="728" class="foreground">  [###################-----------------]   55%  00:00:02  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g34"><text x="0" textLength="728" class="foreground">  [####################----------------]   56%  00:00:02  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g35"><text x="0" textLength="728" class="foreground">  [#####################---------------]   59%  00:00:02  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g36"><text x="0" textLength="728" class="foreground">  [######################--------------]   62%  00:00:02  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g37"><text x="0" textLength="728" class="foreground">  [#######################-------------]   64%  00:00:02  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g38"><text x="0" textLength="728" class="foreground">  [########################------------]   67%  00:00:02  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g39"><text x="0" textLength="728" class="foreground">  [########################------------]   69%  00:00:01  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g40"><text x="0" textLength="728" class="foreground">  [#########################-----------]   72%  00:00:01  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g41"><text x="0" textLength="728" class="foreground">  [##########################----------]   74%  00:00:01  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g42"><text x="0" textLength="728" class="foreground">  [###########################---------]   77%  00:00:01  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g43"><text x="0" textLength="728" class="foreground">  [############################--------]   79%  00:00:01  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g44"><text x="0" textLength="728" class="foreground">  [#############################-------]   81%  00:00:01  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g45"><text x="0" textLength="728" class="foreground">  [#############################-------]   83%  00:00:01  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g46"><text x="0" textLength="728" class="foreground">  [##############################------]   85%  00:00:00  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g47"><text x="0" textLength="728" class="foreground">  [###############################-----]   87%  00:00:00  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g48"><text x="0" textLength="728" class="foreground">  [###############################-----]   88%  00:00:00  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g49"><text x="0" textLength="728" class="foreground">  [################################----]   90%  00:00:00  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g50"><text x="0" textLength="728" class="foreground">  [################################----]   91%  00:00:00  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g51"><text x="0" textLength="728" class="foreground">  [#################################---]   92%  00:00:00  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g52"><text x="0" textLength="728" class="foreground">  [#################################---]   94%  00:00:00  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g53"><text x="0" textLength="728" class="foreground">  [##################################--]   95%  00:00:00  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g54"><text x="0" textLength="728" class="foreground">  [##################################--]   96%  00:00:00  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g55"><text x="0" textLength="728" class="foreground">  [##################################--]   97%  00:00:00  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g56"><text x="0" textLength="728" class="foreground">  [###################################-]   98%  00:00:00  A012C001_191103_XYZ1.mov (verify)</text></g><g id="g57"><text x="0" textLength="744" class="foreground">  [####################################]  100%                                               </text></g><g id="g58"><text x="0" textLength="96" class="foreground">1883.16 MB/s</text></g><g id="g59"><text x="0" textLength="80" class="foreground">bash-3.2$ </text><text x="80" textLength="8" class="background"> </text></g></defs><g id="screen_view"><g><rect x="0" y="0" width="8" height="17" class="foreground"/><use xlink:href="#g1" y="0"/></g><g><use xlink:href="#g2" y="102"/><rect x="0" y="119" width="8" height="17" class="foreground"/><use xlink:href="#g1" y="119"/></g><g><use xlink:href="#g2" y="204"/><use xlink:href="#g3" y="221"/><rect x="0" y="238" width="8" height="17" class="foreground"/><use xlink:href="#g1" y="238"/></g><g><use xlink:href="#g2" y="306"/><use xlink:href="#g3" y="323"/><use xlink:href="#g4" y="340"/></g><g><use xlink:href="#g2" y="408"/><use xlink:href="#g3" y="425"/><use xlink:href="#g5" y="442"/></g><g><use xlink:href="#g2" y="510"/><use xlink:href="#g3" y="527"/><use xlink:href="#g6" y="544"/></g><g><use xlink:href="#g2" y="612"/><use xlink:href="#g3" y="629"/><use xlink:href="#g7" y="646"/></g><g><use xlink:href="#g2" y="714"/><use xlink:href="#g3" y="731"/><use xlink:href="#g8" y="748"/></g><g><use xlink:href="#g2" y="816"/><use xlink:href="#g3" y="833"/><use xlink:href="#g9" y="850"/></g><g><use xlink:href="#g2" y="918"/><use xlink:href="#g3" y="935"/><use xlink:href="#g10" y="952"/></g><g><use xlink:href="#g2" y="1020"/><use xlink:href="#g3" y="1037"/><use xlink:href="#g11" y="1054"/></g><g><use xlink:href="#g2" y="1122"/><use xlink:href="#g3" y="1139"/><use xlink:href="#g12" y="1156"/></g><g><use xlink:href="#g2" y="1224"/><use xlink:href="#g3" y="1241"/><use xlink:href="#g13" y="1258"/></g><g><use xlink:href="#g2" y="1326"/><use xlink:href="#g3" y="1343"/><use xlink:href="#g14" y="1360"/></g><g><use xlink:href="#g2" y="1428"/><use xlink:href="#g3" y="1445"/><use xlink:href="#g15" y="1462"/></g><g><use xlink:href="#g2" y="1530"/><use xlink:href="#g3" y="1547"/><use xlink:href="#g16" y="1564"/></g><g><use xlink:href="#g2" y="1632"/><use xlink:href="#g3" y="1649"/><use xlink:href="#g17" y="1666"/></g><g><use xlink:href="#g2" y="1734"/><use xlink:href="#g3" y="1751"/><use xlink:href="#g18" y="1768"/></g><g><use xlink:href="#g2" y="1836"/><use xlink:href="#g3" y="1853"/><use xlink:href="#g19" y="1870"/></g><g><use xlink:href="#g2" y="1938"/><use xlink:href="#g3" y="1955"/><use xlink:href="#g20" y="1972"/></g><g><use xlink:href="#g2" y="2040"/><use xlink:href="#g3" y="2057"/><use xlink:href="#g21" y="2074"/></g><g><use xlink:href="#g2" y="2142"/><use xlink:href="#g3" y="2159"/><use xlink:href="#g22" y="2176"/></g><g><use xlink:href="#g2" y="2244"/><use xlink:href="#g3" y="2261"/><use xlink:href="#g23" y="2278"/></g><g><use xlink:href="#g2" y="2346"/><use xlink:href="#g3" y="2363"/><use xlink:href="#g24" y="2380"/></g><g><use xlink:href="#g2" y="2448"/><use xlink:href="#g3" y="2465"/><use xlink:href="#g25" y="2482"/></g><g><use xlink:href="#g2" y="2550"/><use xlink:href="#g3" y="2567"/><use xlink:href="#g26" y="2584"/></g><g><use xlink:href="#g2" y="2652"/><use xlink:href="#g3" y="2669"/><use xlink:href="#g27" y="2686"/></g><g><use xlink:href="#g2" y="2754"/><use xlink:href="#g3" y="2771"/><use xlink:href="#g28" y="2788"/></g><g><use xlink:href="#g2" y="2856"/><use xlink:href="#g3" y="2873"/><use xlink:href="#g29" y="2890"/></g><g><use xlink:href="#g2" y="2958"/><use xlink:href="#g3" y="2975"/><use xlink:href="#g30" y="2992"/></g><g><use xlink:href="#g2" y="3060"/><use xlink:href="#g3" y="3077"/><use xlink:href="#g31" y="3094"/></g><g><use xlink:href="#g2" y="3162"/><use xlink:href="#g3" y="3179"/><use xlink:href="#g32" y="3196"/></g><g><use xlink:href="#g2" y="3264"/><use xlink:href="#g3" y="3281"/><use xlink:href="#g33" y="3298"/></g><g><use xlink:href="#g2" y="3366"/><use xlink:href="#g3" y="3383"/><use xlink:href="#g34" y="3400"/></g><g><use xlink:href="#g2" y="3468"/><use xlink:href="#g3" y="3485"/><use xlink:href="#g35" y="3502"/></g><g><use xlink:href="#g2" y="3570"/><use xlink:href="#g3" y="3587"/><use xlink:href="#g36" y="3604"/></g><g><use xlink:href="#g2" y="3672"/><use xlink:href="#g3" y="3689"/><use xlink:href="#g37" y="3706"/></g><g><use xlink:href="#g2" y="3774"/><use xlink:href="#g3" y="3791"/><use xlink:href="#g38" y="3808"/></g><g><use xlink:href="#g2" y="3876"/><use xlink:href="#g3" y="3893"/><use xlink:href="#g39" y="3910"/></g><g><use xlink:href="#g2" y="3978"/><use xlink:href="#g3" y="3995"/><use xlink:href="#g40" y="4012"/></g><g><use xlink:href="#g2" y="4080"/><use xlink:href="#g3" y="4097"/><use xlink:href="#g41" y="4114"/></g><g><use xlink:href="#g2" y="4182"/><use xlink:href="#g3" y="4199"/><use xlink:href="#g42" y="4216"/></g><g><use xlink:href="#g2" y="4284"/><use xlink:href="#g3" y="4301"/><use xlink:href="#g43" y="4318"/></g><g><use xlink:href="#g2" y="4386"/><use xlink:href="#g3" y="4403"/><use xlink:href="#g44" y="4420"/></g><g><use xlink:href="#g2" y="4488"/><use xlink:href="#g3" y="4505"/><use xlink:href="#g45" y="4522"/></g><g><use xlink:href="#g2" y="4590"/><use xlink:href="#g3" y="4607"/><use xlink:href="#g46" y="4624"/></g><g><use xlink:href="#g2" y="4692"/><use xlink:href="#g3" y="4709"/><use xlink:href="#g47" y="4726"/></g><g><use xlink:href="#g2" y="4794"/><use xlink:href="#g3" y="4811"/><use xlink:href="#g48" y="4828"/></g><g><use xlink:href="#g2" y="4896"/><use xlink:href="#g3" y="4913"/><use xlink:href="#g49" y="4930"/></g><g><use xlink:href="#g2" y="4998"/><use xlink:href="#g3" y="5015"/><use xlink:href="#g50" y="5032"/></g><g><use xlink:href="#g2" y="5100"/><use xlink:href="#g3" y="5117"/><use xlink:href="#g51" y="5134"/></g><g><use xlink:href="#g2" y="5202"/><use xlink:href="#g3" y="5219"/><use xlink:href="#g52" y="5236"/></g><g><use xlink:href="#g2" y="5304"/><use xlink:href="#g3" y="5321"/><use xlink:href="#g53" y="5338"/></g><g><use xlink:href="#g2" y="5406"/><use xlink:href="#g3" y="5423"/><use xlink:href="#g54" y="5440"/></g><g><use xlink:href="#g2" y="5508"/><use xlink:href="#g3" y="5525"/><use xlink:href="#g55" y="5542"/></g><g><use xlink:href="#g2" y="5610"/><use xlink:href="#g3" y="5627"/><use xlink:href="#g56" y="5644"/></g><g><use xlink:href="#g3" y="5712"/><use xlink:href="#g57" y="5729"/><use xlink:href="#g58" y="5763"/><rect x="0" y="5780" width="8" height="17" class="foreground"/><use xlink:href="#g1" y="5780"/></g><g><use xlink:href="#g3" y="5814"/><use xlink:href="#g57" y="5831"/><use xlink:href="#g58" y="5865"/><rect x="80" y="5882" width="8" height="17" class="foreground"/><use xlink:href="#g59" y="5882"/></g></g></svg>
+</svg>
