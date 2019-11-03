@@ -6,7 +6,8 @@ from ocopy.copy import CopyJob
 
 
 def simple_example():
-    # For the sake of this example we will create temporary directory. You will not be doing this in your code.
+    # For the sake of this example we will create temporary directory.
+    # You will not be doing this in your code.
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
 
