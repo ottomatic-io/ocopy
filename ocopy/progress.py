@@ -1,3 +1,10 @@
-import multiprocessing
+from queue import Queue
+from threading import currentThread
+from typing import Optional
 
-PROGRESS_QUEUE = multiprocessing.Queue()
+
+def get_progress_queue() -> Optional[Queue]:
+    try:
+        return currentThread().progress_queue
+    except AttributeError:
+        return None

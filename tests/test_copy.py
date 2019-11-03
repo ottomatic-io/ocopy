@@ -5,9 +5,8 @@ from shutil import copystat
 
 import pytest
 
-from ocopy.copy import copy, copytree, copy_and_seal
+from ocopy.copy import copy, copytree, copy_and_seal, CopyJob
 from ocopy.hash import get_hash
-from ocopy.progress import PROGRESS_QUEUE
 from ocopy.utils import folder_size
 
 
@@ -127,8 +126,35 @@ def test_copy_and_seal(tmpdir):
 
     copy_and_seal(src_dir, destinations)
 
+    for dest in destinations:
+        assert len(list((dest / "src").glob("*.mhl"))) == 1
+        assert len((dest / "src" / "xxHash.txt").read_text().splitlines()) == 9
+        assert ".DS_Store" not in [e.name for e in dest.glob("**/*")]
+        assert ".some_hidden_file" in [e.name for e in dest.glob("**/*")]
+
+
+def test_copy_job(tmpdir):
+    tmpdir = Path(tmpdir)
+    src_dir = tmpdir / "src"
+    for card_number in range(1, 3):
+        card = src_dir / f"A00{card_number}XXXX"
+        card.mkdir(parents=True)
+
+        for clip_number in range(1, 5):
+            data = random.randint(0, 100) * b"X"
+            (card / f"A00{card_number}C00{clip_number}_XXXX_XXXX.mov").write_bytes(data)
+
+    (src_dir / ".DS_Store").write_text("")
+    (src_dir / ".some_hidden_file").write_text("")
+
+    destinations = [tmpdir / f"dst_{i}" for i in range(1, 4)]
+    for d in destinations:
+        d.mkdir()
+
+    job = CopyJob(src_dir, destinations)
+
     while True:
-        file_path, done = PROGRESS_QUEUE.get(timeout=5)
+        file_path, done = job.progress_queue.get(timeout=5)
         if file_path == "finished":
             break
 
@@ -137,5 +163,3 @@ def test_copy_and_seal(tmpdir):
         assert len((dest / "src" / "xxHash.txt").read_text().splitlines()) == 9
         assert ".DS_Store" not in [e.name for e in dest.glob("**/*")]
         assert ".some_hidden_file" in [e.name for e in dest.glob("**/*")]
-
-    PROGRESS_QUEUE.close()

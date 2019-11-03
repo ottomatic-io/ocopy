@@ -4,7 +4,7 @@ from math import floor
 from pathlib import Path
 from queue import Queue
 from shutil import copystat
-from threading import Thread
+from threading import Thread, Event
 from typing import List
 
 import xxhash
@@ -12,7 +12,7 @@ import xxhash
 from ocopy.file_info import FileInfo
 from ocopy.hash import multi_xxhash_check, write_xxhash_summary
 from ocopy.mhl import write_mhl
-from ocopy.progress import PROGRESS_QUEUE
+from ocopy.progress import get_progress_queue
 from ocopy.utils import threaded
 
 
@@ -43,6 +43,7 @@ def copy(src_file: Path, destinations: List[Path], chunk_size: int = 1024 * 1024
         w.start()
 
     x = xxhash.xxh64()
+    progress_queue = get_progress_queue()
 
     with open(src_file, "rb") as f:
         while True:
@@ -54,7 +55,8 @@ def copy(src_file: Path, destinations: List[Path], chunk_size: int = 1024 * 1024
                 break
 
             x.update(chunk)
-            PROGRESS_QUEUE.put((src_file, len(chunk)))
+            if progress_queue:
+                progress_queue.put((src_file, len(chunk)))
 
     for q in queues:
         q.join()
@@ -155,7 +157,6 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
         return "skipped"
 
 
-@threaded
 def copy_and_seal(source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False):
     destinations = [d / source.name for d in destinations]
 
@@ -166,4 +167,46 @@ def copy_and_seal(source: Path, destinations: List[Path], overwrite=False, verif
         write_mhl(destinations, file_infos, source, start)
         write_xxhash_summary(destinations, file_infos)
 
-    PROGRESS_QUEUE.put(("finished", -1))
+    progress_queue = get_progress_queue()
+    if progress_queue:
+        progress_queue.put(("finished", -1))
+
+
+class CopyJob(Thread):
+    progress_queue: Queue
+    _cancel: Event
+
+    def __init__(self, source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False):
+        super().__init__()
+        self.daemon = True
+        self.progress_queue = Queue()
+        self._cancel = Event()
+
+        self.source = source
+        self.destinations = destinations
+        self.overwrite = overwrite
+        self.verify = verify
+        self.skip_existing = skip_existing
+
+        self.start()
+
+    def cancel(self):
+        self._cancel.set()
+
+    def cancelled(self):
+        return self._cancel.isSet()
+
+    @threaded
+    def _progress_reader(self):
+        pass
+
+    def run(self):
+        self._progress_reader()
+
+        copy_and_seal(
+            source=self.source,
+            destinations=self.destinations,
+            overwrite=self.overwrite,
+            verify=self.verify,
+            skip_existing=self.skip_existing,
+        )
