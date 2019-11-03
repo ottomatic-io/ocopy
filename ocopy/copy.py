@@ -182,7 +182,6 @@ def _is_cancelled() -> bool:
 class CopyJob(Thread):
     total_size: int
     total_done: int
-    percent_done: float
     finished: bool
 
     def __init__(
@@ -212,7 +211,7 @@ class CopyJob(Thread):
         self._cancel.set()
 
     @property
-    def cancelled(self):
+    def cancelled(self) -> bool:
         return self._cancel.isSet()
 
     @threaded
@@ -226,11 +225,11 @@ class CopyJob(Thread):
                 pass
 
     @property
-    def percent_done(self):
+    def percent_done(self) -> float:
         return 100 / self.todo_size * self.total_done
 
     @property
-    def progress(self):
+    def progress(self) -> str:
         for i in range(1, 101):
             while self.percent_done < i:
                 sleep(0.1)
