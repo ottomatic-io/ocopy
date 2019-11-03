@@ -186,7 +186,9 @@ class CopyJob(Thread):
     progress_queue: Queue
     _cancel: Event
 
-    def __init__(self, source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False):
+    def __init__(
+        self, source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False, auto_start=True
+    ):
         super().__init__()
         self.daemon = True
         self.progress_queue = Queue()
@@ -198,7 +200,8 @@ class CopyJob(Thread):
         self.verify = verify
         self.skip_existing = skip_existing
 
-        self.start()
+        if auto_start:
+            self.start()
 
     def cancel(self):
         self._cancel.set()
