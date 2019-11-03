@@ -1,5 +1,4 @@
 import os
-import random
 from pathlib import Path
 from shutil import copystat
 
@@ -49,20 +48,8 @@ def test_copy(tmpdir):
     assert folder_size(tmpdir) == file_size
 
 
-def test_copytree(tmpdir):
-    tmpdir = Path(tmpdir)
-    src_dir = tmpdir / "src"
-    for card_number in range(1, 3):
-        card = src_dir / f"A00{card_number}XXXX"
-        card.mkdir(parents=True)
-
-        for clip_number in range(1, 5):
-            data = random.randint(0, 100) * b"X"
-            (card / f"A00{card_number}C00{clip_number}_XXXX_XXXX.mov").write_bytes(data)
-
-    destinations = [tmpdir / f"dst_{i}" for i in range(1, 4)]
-    for d in destinations:
-        d.mkdir()
+def test_copytree(card):
+    src_dir, destinations = card
 
     file_infos = copytree(src_dir, destinations)
 
@@ -80,7 +67,7 @@ def test_copytree(tmpdir):
         dest_hashes = [get_hash(p) for p in dest.glob("**/*") if p.is_file()]
         assert source_hashes == dest_hashes
 
-    destination = Path(tmpdir) / "dest_x"
+    destination = destinations[0].parent / "dest_x"
     src_folder = src_dir / "XYZ"
     dst_folder = destination / "XYZ"
     src_folder.mkdir()
@@ -106,23 +93,11 @@ def test_copytree(tmpdir):
     copytree(src_dir, [destination], overwrite=True)
 
 
-def test_copy_and_seal(tmpdir):
-    tmpdir = Path(tmpdir)
-    src_dir = tmpdir / "src"
-    for card_number in range(1, 3):
-        card = src_dir / f"A00{card_number}XXXX"
-        card.mkdir(parents=True)
-
-        for clip_number in range(1, 5):
-            data = random.randint(0, 100) * b"X"
-            (card / f"A00{card_number}C00{clip_number}_XXXX_XXXX.mov").write_bytes(data)
+def test_copy_and_seal(card):
+    src_dir, destinations = card
 
     (src_dir / ".DS_Store").write_text("")
     (src_dir / ".some_hidden_file").write_text("")
-
-    destinations = [tmpdir / f"dst_{i}" for i in range(1, 4)]
-    for d in destinations:
-        d.mkdir()
 
     copy_and_seal(src_dir, destinations)
 
@@ -133,23 +108,8 @@ def test_copy_and_seal(tmpdir):
         assert ".some_hidden_file" in [e.name for e in dest.glob("**/*")]
 
 
-def test_copy_job(tmpdir):
-    tmpdir = Path(tmpdir)
-    src_dir = tmpdir / "src"
-    for card_number in range(1, 3):
-        card = src_dir / f"A00{card_number}XXXX"
-        card.mkdir(parents=True)
-
-        for clip_number in range(1, 5):
-            data = random.randint(0, 100) * b"X"
-            (card / f"A00{card_number}C00{clip_number}_XXXX_XXXX.mov").write_bytes(data)
-
-    (src_dir / ".DS_Store").write_text("")
-    (src_dir / ".some_hidden_file").write_text("")
-
-    destinations = [tmpdir / f"dst_{i}" for i in range(1, 4)]
-    for d in destinations:
-        d.mkdir()
+def test_copy_job(card):
+    src_dir, destinations = card
 
     job = CopyJob(src_dir, destinations)
 
@@ -160,6 +120,20 @@ def test_copy_job(tmpdir):
 
     for dest in destinations:
         assert len(list((dest / "src").glob("*.mhl"))) == 1
-        assert len((dest / "src" / "xxHash.txt").read_text().splitlines()) == 9
-        assert ".DS_Store" not in [e.name for e in dest.glob("**/*")]
-        assert ".some_hidden_file" in [e.name for e in dest.glob("**/*")]
+        assert len((dest / "src" / "xxHash.txt").read_text().splitlines()) == 8
+
+
+def test_copy_job_cancel(card):
+    src_dir, destinations = card
+
+    job = CopyJob(src_dir, destinations)
+    job.cancel()
+
+    while True:
+        file_path, done = job.progress_queue.get(timeout=5)
+        if file_path == "finished":
+            break
+
+    # Only hash files should be present
+    for dest in destinations:
+        assert len(list((dest / "src").glob("**/*"))) == 2
