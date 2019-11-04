@@ -2,9 +2,8 @@
 import datetime
 from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
-from math import floor
 from pathlib import Path
-from queue import Queue, Empty
+from queue import Queue
 from shutil import copystat
 from threading import Thread, Event, currentThread
 from time import sleep
@@ -134,7 +133,7 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
             if (
                 skip_existing
                 and src_file.stat().st_size == d.stat().st_size
-                and floor(src_file.stat().st_mtime) == floor(d.stat().st_mtime)
+                and round(src_file.stat().st_mtime) == round(d.stat().st_mtime)
             ):
                 to_do_destinations.remove(d)
             elif overwrite:
