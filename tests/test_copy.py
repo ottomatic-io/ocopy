@@ -206,23 +206,25 @@ def test_copytree(card):
     destination = destinations[0].parent / "dest_x"
     src_folder = src_dir / "XYZ"
     dst_folder = destination / "XYZ"
-    src_folder.mkdir()
-    dst_folder.mkdir(parents=True)
+    src_sub_folders = src_folder / "some" / "sub"
+    dst_sub_folders = dst_folder / "some" / "sub"
+    src_sub_folders.mkdir(parents=True)
+    dst_sub_folders.mkdir(parents=True)
 
-    (src_folder / "existing_file").write_text("foo")
-    (dst_folder / "existing_file").write_text("foo")
+    (src_sub_folders / "existing_file").write_text("foo")
+    (dst_sub_folders / "existing_file").write_text("foo")
 
     # FIXME: Expect FileExistsError
     with pytest.raises(Exception):
         copytree(src_dir, [destination])
 
     # Only skip when the modification times match
-    os.utime((dst_folder / "existing_file"), (0, 0))
+    os.utime((dst_sub_folders / "existing_file"), (0, 0))
     with pytest.raises(Exception):
         copytree(src_dir, [destination], skip_existing=True)
 
     # Make the mtime match
-    copystat(src_folder / "existing_file", dst_folder / "existing_file")
+    copystat(src_sub_folders / "existing_file", dst_sub_folders / "existing_file")
     copytree(src_dir, [destination], skip_existing=True)
 
     # Just overwrite existing files
