@@ -61,4 +61,4 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destina
 
 
 if __name__ == "__main__":
-    cli()
+    cli()  # pragma: no cover

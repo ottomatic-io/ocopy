@@ -1,12 +1,12 @@
 import os
-from io import StringIO, BytesIO
+from io import BytesIO
 from pathlib import Path
 from shutil import copystat
 from time import sleep
 
 import pytest
 
-from ocopy.copy import copy, copytree, copy_and_seal, CopyJob, VerificationError
+from ocopy.copy import copy, copytree, copy_and_seal, CopyJob
 from ocopy.hash import get_hash
 from ocopy.utils import folder_size
 
