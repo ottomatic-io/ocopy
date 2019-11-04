@@ -18,7 +18,11 @@ from ocopy.progress import get_progress_queue
 from ocopy.utils import threaded, folder_size
 
 
-class VerificationError(Exception):
+class CopyError(Exception):
+    pass
+
+
+class VerificationError(CopyError):
     pass
 
 
@@ -74,11 +78,6 @@ def copytree(
 ) -> List[FileInfo]:
     """Based on shutil.copytree"""
 
-    class Error(Exception):
-        """Base class for exceptions in this module."""
-
-        pass
-
     for d in destinations:
         d.mkdir(parents=True, exist_ok=True)
 
@@ -104,7 +103,7 @@ def copytree(
 
         # catch the Error from the recursive copytree so that we can
         # continue with other files
-        except Error as err:
+        except CopyError as err:
             errors.extend(err.args[0])
         except EnvironmentError as why:
             errors.append((src_path, dst_paths, str(why)))
@@ -113,7 +112,7 @@ def copytree(
         copystat(source, d)
 
     if errors:
-        raise Error(errors)
+        raise CopyError(errors)
 
     return file_infos
 
