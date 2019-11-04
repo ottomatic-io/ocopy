@@ -240,6 +240,7 @@ class CopyJob(Thread):
 
     def run(self):
         if self.cancelled:
+            self.finished = True
             return
 
         self._progress_reader()

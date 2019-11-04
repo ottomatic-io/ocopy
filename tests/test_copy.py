@@ -271,6 +271,21 @@ def test_copy_job_cancel(card):
         assert len(list((dest / "src").glob("**/*"))) == 2
 
 
+def test_copy_job_cancel_before_start(card):
+    src_dir, destinations = card
+
+    job = CopyJob(src_dir, destinations, auto_start=False)
+    job.cancel()
+    job.start()
+
+    while job.finished is not True:
+        sleep(0.1)
+
+    # No files should be present
+    for dest in destinations:
+        assert len(list((dest / "src").glob("**/*"))) == 0
+
+
 def test_copy_job_progress(card):
     src_dir, destinations = card
 
