@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import datetime
+from concurrent.futures import as_completed
+from concurrent.futures.thread import ThreadPoolExecutor
 from math import floor
 from pathlib import Path
 from queue import Queue, Empty
@@ -17,7 +19,7 @@ from ocopy.progress import get_progress_queue
 from ocopy.utils import threaded, folder_size
 
 
-class CopyFailedException(Exception):
+class VerificationError(Exception):
     pass
 
 
@@ -37,33 +39,30 @@ def copy(src_file: Path, destinations: List[Path], chunk_size: int = 1024 * 1024
                 dest_f.write(write_chunk)
                 queue.task_done()
 
-    writers = [Thread(target=writer, args=(queues[i], d)) for i, d in enumerate(destinations)]
+    with ThreadPoolExecutor(max_workers=len(destinations)) as executor:
+        futures = [executor.submit(writer, queues[i], d) for i, d in enumerate(destinations)]
 
-    for w in writers:
-        w.daemon = True
-        w.start()
+        x = xxhash.xxh64()
+        progress_queue = get_progress_queue()
 
-    x = xxhash.xxh64()
-    progress_queue = get_progress_queue()
+        with open(src_file, "rb") as f:
+            while True:
+                chunk = f.read(chunk_size)
+                for q in queues:
+                    q.put(chunk)
 
-    with open(src_file, "rb") as f:
-        while True:
-            chunk = f.read(chunk_size)
-            for q in queues:
-                q.put(chunk)
+                if not chunk:
+                    break
 
-            if not chunk:
-                break
+                x.update(chunk)
+                if progress_queue:
+                    progress_queue.put((src_file, len(chunk)))
 
-            x.update(chunk)
-            if progress_queue:
-                progress_queue.put((src_file, len(chunk)))
+        for future in as_completed(futures):
+            future.result()
 
     for q in queues:
         q.join()
-
-    for w in writers:
-        w.join()
 
     for d in destinations:
         copystat(src_file, d)
@@ -145,18 +144,22 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
 
     if to_do_destinations:
         tmp_destinations = [d.with_name(d.name + ".copy_in_progress") for d in to_do_destinations]
-        file_hash = copy(src_file, tmp_destinations)
+        try:
+            file_hash = copy(src_file, tmp_destinations)
 
-        # Verify source and destinations
-        if not verify or file_hash == multi_xxhash_check(tmp_destinations + [src_file]):
+            # Verify source and destinations
+            if not verify or file_hash == multi_xxhash_check(tmp_destinations + [src_file]):
+                for tmp in tmp_destinations:
+                    tmp.rename(tmp.with_name(tmp.name.replace(".copy_in_progress", "")))
+                return file_hash
+            else:
+                raise VerificationError(src_file)
+        finally:
             for tmp in tmp_destinations:
-                tmp.rename(tmp.with_name(tmp.name.replace(".copy_in_progress", "")))
-            return file_hash
-        else:
-            for tmp in tmp_destinations:
-                tmp.unlink()
-
-            raise CopyFailedException(src_file)
+                try:
+                    tmp.unlink()
+                except FileNotFoundError:
+                    pass
     else:
         return "skipped"
 

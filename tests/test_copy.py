@@ -1,11 +1,12 @@
 import os
+from io import StringIO, BytesIO
 from pathlib import Path
 from shutil import copystat
 from time import sleep
 
 import pytest
 
-from ocopy.copy import copy, copytree, copy_and_seal, CopyJob
+from ocopy.copy import copy, copytree, copy_and_seal, CopyJob, VerificationError
 from ocopy.hash import get_hash
 from ocopy.utils import folder_size
 
@@ -47,6 +48,140 @@ def test_copy(tmpdir):
     for d in destinations:
         d.remove()
     assert folder_size(tmpdir) == file_size
+
+
+def test_copy_mocked(tmpdir, mocker):
+    copystat_mock = mocker.patch("shutil.copystat", mocker.Mock())
+    open_mock = mocker.patch("builtins.open", mocker.mock_open(read_data="test content"))
+
+    src_file = tmpdir / "test-äöüàéè.txt"
+
+    destinations = ["dst_1", "dst_2", "dst_3"]
+    for d in destinations:
+        tmpdir.mkdir(d)
+
+    destinations = [tmpdir / d / "test" for d in destinations]
+
+    from importlib import reload
+    import ocopy.copy
+
+    reload(ocopy.copy)
+
+    ocopy.copy.copy(src_file, destinations)
+
+    open_mock().write.assert_has_calls(
+        [mocker.call("test content"), mocker.call("test content"), mocker.call("test content")]
+    )
+    assert open_mock().write.call_count == 3
+    assert copystat_mock.call_count == 3
+
+
+def test_copy_error(tmpdir, mocker):
+    open_mock = mocker.patch("builtins.open", mocker.mock_open(read_data="test content"))
+    open_mock.side_effect = IOError()
+
+    src_file = tmpdir / "test-äöüàéè.txt"
+
+    destinations = ["dst_1", "dst_2", "dst_3"]
+    for d in destinations:
+        tmpdir.mkdir(d)
+
+    destinations = [tmpdir / d / "test" for d in destinations]
+
+    from importlib import reload
+    import ocopy.copy
+
+    reload(ocopy.copy)
+    with pytest.raises(IOError):
+        ocopy.copy.copy(src_file, destinations)
+
+
+def test_verified_copy_io_error(tmpdir, mocker):
+    from contextlib import contextmanager
+
+    class FakeIo:
+        def __init__(self, file_path):
+            self._file_path = file_path
+            self._data = BytesIO(b"some fake data")
+
+        def read(self, count):
+            return self._data.read(count)
+
+        def write(self, data):
+            if "dst_3" in Path(self._file_path).as_posix():
+                sleep(0.2)
+                raise IOError()
+            return len(data)
+
+    @contextmanager
+    def fake_open(path, options, **kwds):
+        yield FakeIo(path)
+
+    mocker.patch("builtins.open", fake_open)
+    mocker.patch("shutil.copystat", mocker.Mock())
+    mocker.patch("pathlib.Path.rename", mocker.Mock())
+    unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
+
+    src_file = tmpdir / "test-äöüàéè.txt"
+
+    destinations = ["dst_1", "dst_2", "dst_3"]
+    for d in destinations:
+        tmpdir.mkdir(d)
+
+    destinations = [Path(tmpdir) / d / "test" for d in destinations]
+
+    from importlib import reload
+    import ocopy.copy
+
+    reload(ocopy.copy)
+    with pytest.raises(IOError):
+        ocopy.copy.verified_copy(src_file, destinations)
+
+    assert unlink_mock.call_count == 3
+
+
+def test_verified_copy_verificaton_error(tmpdir, mocker):
+    from contextlib import contextmanager
+
+    class FakeIo:
+        def __init__(self, file_path):
+            self._file_path = file_path
+            self._data = BytesIO(b"some fake data")
+            self._damaged_data = BytesIO(b"some BROKEN fake data")
+
+        def read(self, count):
+            if "dst_3" in Path(self._file_path).as_posix():
+                return self._damaged_data.read(count)
+            return self._data.read(count)
+
+        def write(self, data):
+            return len(data)
+
+    @contextmanager
+    def fake_open(path, options, **kwds):
+        yield FakeIo(path)
+
+    mocker.patch("builtins.open", fake_open)
+    mocker.patch("shutil.copystat", mocker.Mock())
+    mocker.patch("pathlib.Path.rename", mocker.Mock())
+    unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
+
+    src_file = tmpdir / "test-äöüàéè.txt"
+
+    destinations = ["dst_1", "dst_2", "dst_3"]
+    for d in destinations:
+        tmpdir.mkdir(d)
+
+    destinations = [Path(tmpdir) / d / "test" for d in destinations]
+
+    from importlib import reload
+    import ocopy.copy
+
+    reload(ocopy.copy)
+    with pytest.raises(ocopy.copy.VerificationError):
+        ocopy.copy.verified_copy(src_file, destinations)
+
+    assert unlink_mock.call_count == 3
 
 
 def test_copytree(card):
