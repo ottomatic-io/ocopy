@@ -220,12 +220,9 @@ class CopyJob(Thread):
     @threaded
     def _progress_reader(self):
         while not (self.finished or self.cancelled):
-            try:
-                file_path, done = self._progress_queue.get(timeout=5)
-                self.current_item = Path(file_path).name
-                self.total_done += done
-            except Empty:
-                pass
+            file_path, done = self._progress_queue.get()
+            self.current_item = Path(file_path).name
+            self.total_done += done
 
     @property
     def percent_done(self) -> int:
