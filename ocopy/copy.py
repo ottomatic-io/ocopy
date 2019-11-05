@@ -101,7 +101,7 @@ def copytree(
     for d in destinations:
         d.mkdir(parents=True, exist_ok=True)
 
-    ignored_files = [".DS_Store"]
+    ignored_files = [".DS_Store", ".fseventsd"]
 
     file_infos = []
     errors = []
