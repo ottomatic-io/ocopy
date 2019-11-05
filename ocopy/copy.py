@@ -23,6 +23,7 @@ class CopyTreeError(OSError):
     """
     Raised by recursive copytree
     """
+
     pass
 
 
@@ -30,6 +31,7 @@ class VerificationError(OSError):
     """
     Raised if checksums for copied files do not match
     """
+
     pass
 
 
@@ -38,6 +40,7 @@ class ErrorListEntry:
     """
     Used to store errors while continuing the recursive copytree
     """
+
     source: Path
     destinations: List[Path]
     error_message: str
@@ -118,10 +121,15 @@ def copytree(
                 stat = src_path.stat()
                 file_infos.append(FileInfo(src_path, file_hash, stat.st_size, stat.st_mtime))
 
-        # catch the Error from the recursive copytree so that we can continue with other files
+        # Catch the CopyTreeError from the recursive copytree so that we can continue with other files
         except CopyTreeError as err:
             errors.extend(err.args[0])
         except OSError as why:
+            try:
+                # Adding full expected progress in case we could not read the file at all
+                get_progress_queue().put((src_path.name, src_path.stat().st_size * (len(destinations) + 1)))
+            except AttributeError:
+                pass
             errors.append(ErrorListEntry(src_path, dst_paths, str(why)))
 
     for d in destinations:

@@ -52,7 +52,7 @@ def simple_example():
 
         # Print errors
         for error in job.errors:
-            print(error.error_message)
+            print(f"Failed to copy {error.source.name}:\n{error.error_message}")
 
         # Show content of the mhl file
         mhl_file_content = list(destinations[0].glob("**/*.mhl"))[0].read_text()

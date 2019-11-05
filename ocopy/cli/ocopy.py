@@ -56,8 +56,17 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destina
         for _ in progress:
             pass
 
+    while not job.finished:
+        time.sleep(0.1)
+
     stop = time.time()
     click.echo(f"\n{size / 1000 / 1000 / (stop - start):.2f} MB/s")
+
+    for error in job.errors:
+        click.secho(f"Failed to copy {error.source.name}:\n{error.error_message}", fg="red")
+
+    if job.errors:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
