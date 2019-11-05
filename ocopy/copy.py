@@ -125,11 +125,6 @@ def copytree(
         except CopyTreeError as err:
             errors.extend(err.args[0])
         except OSError as why:
-            try:
-                # Adding full expected progress in case we could not read the file at all
-                get_progress_queue().put((src_path.name, src_path.stat().st_size * (len(destinations) + 1)))
-            except AttributeError:
-                pass
             errors.append(ErrorListEntry(src_path, dst_paths, str(why)))
 
     for d in destinations:
@@ -279,3 +274,4 @@ class CopyJob(Thread):
             self.errors = e.args[0]
 
         self.finished = True
+        self.total_done = self.todo_size
