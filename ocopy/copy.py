@@ -2,6 +2,7 @@
 import datetime
 from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 from queue import Queue
 from shutil import copystat
@@ -18,12 +19,28 @@ from ocopy.progress import get_progress_queue
 from ocopy.utils import threaded, folder_size
 
 
-class CopyError(Exception):
+class CopyTreeError(OSError):
+    """
+    Raised by recursive copytree
+    """
     pass
 
 
-class VerificationError(CopyError):
+class VerificationError(OSError):
+    """
+    Raised if checksums for copied files do not match
+    """
     pass
+
+
+@dataclass
+class ErrorListEntry:
+    """
+    Used to store errors while continuing the recursive copytree
+    """
+    source: Path
+    destinations: List[Path]
+    error_message: str
 
 
 def copy(src_file: Path, destinations: List[Path], chunk_size: int = 1024 * 1024) -> str:
@@ -76,7 +93,7 @@ def copy(src_file: Path, destinations: List[Path], chunk_size: int = 1024 * 1024
 def copytree(
     source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False
 ) -> List[FileInfo]:
-    """Based on shutil.copytree"""
+    """Recursively copy a source directory to multiple destinations"""
 
     for d in destinations:
         d.mkdir(parents=True, exist_ok=True)
@@ -101,18 +118,17 @@ def copytree(
                 stat = src_path.stat()
                 file_infos.append(FileInfo(src_path, file_hash, stat.st_size, stat.st_mtime))
 
-        # catch the Error from the recursive copytree so that we can
-        # continue with other files
-        except CopyError as err:
+        # catch the Error from the recursive copytree so that we can continue with other files
+        except CopyTreeError as err:
             errors.extend(err.args[0])
-        except EnvironmentError as why:
-            errors.append((src_path, dst_paths, str(why)))
+        except OSError as why:
+            errors.append(ErrorListEntry(src_path, dst_paths, str(why)))
 
     for d in destinations:
         copystat(source, d)
 
     if errors:
-        raise CopyError(errors)
+        raise CopyTreeError(errors)
 
     return file_infos
 
@@ -151,7 +167,7 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
                     tmp.rename(tmp.with_name(tmp.name.replace(".copy_in_progress", "")))
                 return file_hash
             else:
-                raise VerificationError(src_file)
+                raise VerificationError(f"Verification failed for {src_file}")
         finally:
             for tmp in tmp_destinations:
                 try:
@@ -184,12 +200,14 @@ class CopyJob(Thread):
     total_size: int
     total_done: int
     finished: bool
+    errors: List[ErrorListEntry]
 
     def __init__(
         self, source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False, auto_start=True
     ):
         super().__init__()
         self.daemon = True
+        self.errors = []
         self._progress_queue = Queue()
         self._cancel = Event()
 
@@ -240,12 +258,16 @@ class CopyJob(Thread):
 
         self._progress_reader()
 
-        copy_and_seal(
-            source=self.source,
-            destinations=self.destinations,
-            overwrite=self.overwrite,
-            verify=self.verify,
-            skip_existing=self.skip_existing,
-        )
+        try:
+            copy_and_seal(
+                source=self.source,
+                destinations=self.destinations,
+                overwrite=self.overwrite,
+                verify=self.verify,
+                skip_existing=self.skip_existing,
+            )
+
+        except CopyTreeError as e:
+            self.errors = e.args[0]
 
         self.finished = True

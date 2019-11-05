@@ -24,6 +24,10 @@ def simple_example():
         while job.finished is not True:
             sleep(0.1)
 
+        # Print errors
+        for error in job.errors:
+            print(error.error_message)
+
         # Show content of the mhl file
         mhl_file_content = list(destinations[0].glob("**/*.mhl"))[0].read_text()
         print(mhl_file_content)

@@ -140,7 +140,7 @@ def test_verified_copy_io_error(tmpdir, mocker):
     assert unlink_mock.call_count == 3
 
 
-def test_verified_copy_verificaton_error(tmpdir, mocker):
+def test_verified_copy_verification_error(tmpdir, mocker):
     from contextlib import contextmanager
 
     class FakeIo:
@@ -300,3 +300,93 @@ def test_copy_job_progress(card):
         pass
 
     assert progress == 100
+
+
+def test_copy_job_verification_error(card, mocker):
+    from contextlib import contextmanager
+
+    class FakeIo:
+        def __init__(self, file_path):
+            self._file_path = file_path
+            self._data = BytesIO(b"some fake data")
+            self._damaged_data = BytesIO(b"some BROKEN fake data")
+
+        def read(self, count):
+            if "dst_3/src/A001XXXX/A001C001_XXXX_XXXX.mov.copy_in_progress" in Path(self._file_path).as_posix():
+                return self._damaged_data.read(count)
+            return self._data.read(count)
+
+        def write(self, data):
+            return len(data)
+
+    @contextmanager
+    def fake_open(path, options, **kwds):
+        yield FakeIo(path)
+
+    mocker.patch("builtins.open", fake_open)
+    mocker.patch("shutil.copystat", mocker.Mock())
+    rename_mock = mocker.patch("pathlib.Path.rename", mocker.Mock())
+    unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
+
+    from importlib import reload
+    import ocopy.copy
+
+    reload(ocopy.copy)
+
+    src_dir, destinations = card
+
+    job = ocopy.copy.CopyJob(src_dir, destinations)
+    assert job.finished is False
+
+    while not job.finished:
+        sleep(0.1)
+
+    assert len(job.errors) == 1
+    assert 'Verification failed' in job.errors[0].error_message
+    assert rename_mock.call_count == 21  # Only good files get renamed
+    assert unlink_mock.call_count == 24  # Unlink is tried for all temporary files
+
+
+def test_copy_job_io_error(card, mocker):
+    from contextlib import contextmanager
+
+    class FakeIo:
+        def __init__(self, file_path):
+            self._file_path = file_path
+            self._data = BytesIO(b"some fake data")
+
+        def read(self, count):
+            return self._data.read(count)
+
+        def write(self, data):
+            if "dst_3/src/A001XXXX/A001C001_XXXX_XXXX.mov.copy_in_progress" in Path(self._file_path).as_posix():
+                sleep(0.2)
+                raise IOError("IO Error")
+            return len(data)
+
+    @contextmanager
+    def fake_open(path, options, **kwds):
+        yield FakeIo(path)
+
+    mocker.patch("builtins.open", fake_open)
+    mocker.patch("shutil.copystat", mocker.Mock())
+    rename_mock = mocker.patch("pathlib.Path.rename", mocker.Mock())
+    unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
+
+    from importlib import reload
+    import ocopy.copy
+
+    reload(ocopy.copy)
+
+    src_dir, destinations = card
+
+    job = ocopy.copy.CopyJob(src_dir, destinations)
+    assert job.finished is False
+
+    while not job.finished:
+        sleep(0.1)
+
+    assert len(job.errors) == 1
+    assert 'IO Error' in job.errors[0].error_message
+    assert rename_mock.call_count == 21  # Only good files get renamed
+    assert unlink_mock.call_count == 24  # Unlink is tried for all temporary files
