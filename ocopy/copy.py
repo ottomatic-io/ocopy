@@ -156,7 +156,7 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
             if (
                 skip_existing
                 and src_file.stat().st_size == d.stat().st_size
-                and round(src_file.stat().st_mtime) == round(d.stat().st_mtime)
+                and abs(src_file.stat().st_mtime - d.stat().st_mtime) <= 2
             ):
                 to_do_destinations.remove(d)
             elif overwrite:
