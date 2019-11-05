@@ -25,8 +25,9 @@ from ocopy.utils import folder_size, get_mount
 )
 @click.option(
     "--skip-existing/--dont-skip",
-    help="Skip existing files if they have the same size and modification time as the source (defaults to --dont-skip)",
-    default=False,
+    help="Skip existing files if they have the same size and modification time "
+         "as the source (defaults to --skip-existing)",
+    default=True,
 )
 @click.argument("source", nargs=1, type=click.Path(exists=True, readable=True, file_okay=False, dir_okay=True))
 @click.argument(

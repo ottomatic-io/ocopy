@@ -1,5 +1,6 @@
 from io import BytesIO
 from pathlib import Path
+from shutil import copystat
 from time import sleep
 
 from click.testing import CliRunner
@@ -20,6 +21,25 @@ def test_copy(card):
     result = runner.invoke(cli, [src_dir.as_posix(), *[d.as_posix() for d in destinations]])
     assert result.exit_code == 0
     assert "different drives" in result.output
+
+
+def test_skip(card):
+    src_dir, destinations = card
+
+    src_file = src_dir / "testfile"
+    src_file.write_text(1024 * "some data")
+
+    for dst in destinations:
+        dst_dir = dst / src_dir.name
+        dst_dir.mkdir()
+        dst_file = dst_dir / "testfile"
+        dst_file.write_text(1024 * "some data")
+        copystat(src_file, dst_file)
+
+    runner = CliRunner()
+    # result = runner.invoke(cli, [src_dir.as_posix(), *[d.as_posix() for d in destinations]])
+    result = runner.invoke(cli, ["--skip-existing", src_dir.as_posix(), *[d.as_posix() for d in destinations]])
+    assert result.exit_code == 0
 
 
 def test_not_enough_space(card, mocker):
