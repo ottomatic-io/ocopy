@@ -32,8 +32,6 @@ def test_skip(tmpdir, card):
 
     src_file = src_dir / "testfile"
     src_file.write_text("some data")
-    print(src_file.stat().st_size)
-    print(src_file.stat().st_mtime)
 
     # Create existing testfile on two of three destinations
     for dst in destinations[-2:]:
@@ -42,13 +40,11 @@ def test_skip(tmpdir, card):
         dst_file = dst_dir / "testfile"
         dst_file.write_text("some data")
         copystat(src_file, dst_file)
-        print(dst_file.stat().st_size)
-        print(dst_file.stat().st_mtime)
 
     runner = CliRunner()
     result = runner.invoke(cli, [src_dir.as_posix(), *[d.as_posix() for d in destinations]])
-    print(result.output)
     assert result.exit_code == 0
+    assert "Skipped" in result.output
 
 
 def test_not_enough_space(card, mocker):

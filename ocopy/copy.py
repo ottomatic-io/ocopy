@@ -153,6 +153,10 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
                 and src_file.stat().st_size == destination.stat().st_size
                 and abs(src_file.stat().st_mtime - destination.stat().st_mtime) <= 2
             ):
+                try:
+                    currentThread().skipped_files += 1
+                except AttributeError:
+                    pass
                 to_do_destinations.remove(destination)
             elif overwrite:
                 destination.unlink()
@@ -210,6 +214,7 @@ class CopyJob(Thread):
     ):
         super().__init__()
         self.daemon = True
+        self.skipped_files = 0
         self.errors = []
         self._progress_queue = Queue()
         self._cancel = Event()

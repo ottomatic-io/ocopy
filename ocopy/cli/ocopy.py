@@ -25,8 +25,10 @@ from ocopy.utils import folder_size, get_mount
 )
 @click.option(
     "--skip-existing/--dont-skip",
-    help="Skip existing files if they have the same size and modification time "
-         "as the source (defaults to --skip-existing)",
+    help=(
+        "Skip existing files if they have the same size and modification time "
+        "as the source (defaults to --skip-existing)"
+    ),
     default=True,
 )
 @click.argument("source", nargs=1, type=click.Path(exists=True, readable=True, file_okay=False, dir_okay=True))
@@ -57,16 +59,20 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destina
         for _ in progress:
             pass
 
-    while not job.finished:
-        time.sleep(0.1)
-
     stop = time.time()
     click.echo(f"\n{size / 1000 / 1000 / (stop - start):.2f} MB/s")
 
-    for error in job.errors:
-        click.secho(f"\nFailed to copy {error.source.name}:\n{error.error_message}", fg="red")
+    if job.skipped_files:
+        click.secho(
+            f"\nSkipped {job.skipped_files} existing file{'s' if job.skipped_files > 1 else ''} "
+            f"with same name, size and modification time.",
+            fg="yellow",
+        )
 
     if job.errors:
+        for error in job.errors:
+            click.secho(f"\nFailed to copy {error.source.name}:\n{error.error_message}", fg="red")
+
         sys.exit(1)
 
 
