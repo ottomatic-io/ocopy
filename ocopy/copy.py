@@ -101,7 +101,7 @@ def copytree(
     for d in destinations:
         d.mkdir(parents=True, exist_ok=True)
 
-    ignored_files = [".DS_Store"]
+    ignored_files = [".DS_Store", ".fseventsd"]
 
     file_infos = []
     errors = []
@@ -125,11 +125,6 @@ def copytree(
         except CopyTreeError as err:
             errors.extend(err.args[0])
         except OSError as why:
-            try:
-                # Adding full expected progress in case we could not read the file at all
-                get_progress_queue().put((src_path.name, src_path.stat().st_size * (len(destinations) + 1)))
-            except AttributeError:
-                pass
             errors.append(ErrorListEntry(src_path, dst_paths, str(why)))
 
     for d in destinations:
@@ -149,20 +144,20 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
     - Calculates checksum of source during copy
     - Re-Reads source and all destinations and make sure all checksums match
     """
-    to_do_destinations = destinations
+    to_do_destinations = destinations.copy()
 
-    for d in destinations:
-        if d.exists():
+    for destination in destinations:
+        if destination.exists():
             if (
                 skip_existing
-                and src_file.stat().st_size == d.stat().st_size
-                and abs(src_file.stat().st_mtime - d.stat().st_mtime) <= 2
+                and src_file.stat().st_size == destination.stat().st_size
+                and abs(src_file.stat().st_mtime - destination.stat().st_mtime) <= 2
             ):
-                to_do_destinations.remove(d)
+                to_do_destinations.remove(destination)
             elif overwrite:
-                d.unlink()
+                destination.unlink()
             else:
-                raise FileExistsError(f"{d.as_posix()} exists!")
+                raise FileExistsError(f"{destination.as_posix()} exists!")
 
     if to_do_destinations:
         tmp_destinations = [d.with_name(d.name + ".copy_in_progress") for d in to_do_destinations]
@@ -279,3 +274,4 @@ class CopyJob(Thread):
             self.errors = e.args[0]
 
         self.finished = True
+        self.total_done = self.todo_size
