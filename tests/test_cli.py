@@ -5,6 +5,7 @@ from time import sleep
 from unittest import mock
 
 import pytest
+import requests_mock
 from click.testing import CliRunner
 
 from ocopy.cli.ocopy import cli
@@ -18,6 +19,14 @@ def package():
 
     with mock.patch("pkg_resources.get_distribution", Distribution) as _fixture:
         yield _fixture
+
+
+@pytest.fixture(scope="session", autouse=True)
+def github():
+    with requests_mock.Mocker() as mock_request:
+        mock_request.get("https://api.github.com/repos/OTTOMATIC-IO/ocopy/releases/latest", json={"tag_name": "0.6.5"})
+
+        yield mock_request
 
 
 def test_help():
@@ -173,14 +182,7 @@ def test_io_error(card, mocker):
     assert unlink_mock.call_count == 24  # Unlink is tried for all temporary files
 
 
-def test_update(requests_mock, mocker, card):
-    class Distribution:
-        def __init__(self, _):
-            self.version = "0.0.1"
-
-    requests_mock.get("https://api.github.com/repos/OTTOMATIC-IO/ocopy/releases/latest", json={"tag_name": "0.6.5"})
-    mocker.patch("pkg_resources.get_distribution", Distribution, create=True)
-
+def test_update(card):
     src_dir, destinations = card
 
     runner = CliRunner()
