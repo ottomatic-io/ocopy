@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List
 
 import click
+import pkg_resources
 
 from ocopy.copy import CopyJob
 from ocopy.utils import folder_size, get_mount
