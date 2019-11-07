@@ -6,7 +6,7 @@ from time import sleep
 
 import pytest
 
-from ocopy.copy import copy, copytree, copy_and_seal, CopyJob
+from ocopy.copy import copy, copytree, copy_and_seal, CopyJob, verified_copy
 from ocopy.hash import get_hash
 from ocopy.utils import folder_size
 
@@ -94,6 +94,44 @@ def test_copy_error(tmpdir, mocker):
     reload(ocopy.copy)
     with pytest.raises(IOError):
         ocopy.copy.copy(src_file, destinations)
+
+
+def test_verified_copy_skip(tmpdir):
+    tmpdir = Path(tmpdir)
+    src_file = tmpdir / "testfile.txt"
+    file_size = 1024 * 1024 * 16
+    src_file.write_text("x" * file_size)
+
+    destination_dirs = [tmpdir / d / "some" / "sub" / "dir" for d in ["dst_1", "dst_2", "dst_3"]]
+    for directory in destination_dirs:
+        directory.mkdir(parents=True)
+
+    destinations = [d / "testfile.txt" for d in destination_dirs]
+
+    assert verified_copy(src_file, destinations) == "6878668a929c42c1"
+    (tmpdir / "dst_1" / "test.mhl").write_text(
+        """<?xml version='1.0' encoding='utf-8'?>
+        <hashlist version="1.0">
+          <creatorinfo>
+            <name>Ben Hagen</name>
+            <username>ben</username>
+            <hostname>Bens-MacBook-Pro.local</hostname>
+            <tool>o/COPY</tool>
+            <startdate>2018-01-07T21:31:17Z</startdate>
+            <finishdate>2018-01-07T21:31:52Z</finishdate>
+          </creatorinfo>
+          <hash>
+            <file>some/sub/dir/testfile.txt</file>
+            <size>7340032000</size>
+            <xxhash64be>6878668a929c42c1</xxhash64be>
+            <lastmodificationdate>2018-01-05T21:26:59Z</lastmodificationdate>
+            <hashdate>2018-01-07T21:31:52Z</hashdate>
+          </hash>
+        </hashlist>
+        """
+    )
+
+    assert verified_copy(src_file, destinations, skip_existing=True) == "6878668a929c42c1"
 
 
 def test_verified_copy_io_error(tmpdir, mocker):
@@ -342,7 +380,7 @@ def test_copy_job_verification_error(card, mocker):
         sleep(0.1)
 
     assert len(job.errors) == 1
-    assert 'Verification failed' in job.errors[0].error_message
+    assert "Verification failed" in job.errors[0].error_message
     assert rename_mock.call_count == 21  # Only good files get renamed
     assert unlink_mock.call_count == 24  # Unlink is tried for all temporary files
 
@@ -387,6 +425,6 @@ def test_copy_job_io_error(card, mocker):
         sleep(0.1)
 
     assert len(job.errors) == 1
-    assert 'IO Error' in job.errors[0].error_message
+    assert "IO Error" in job.errors[0].error_message
     assert rename_mock.call_count == 21  # Only good files get renamed
     assert unlink_mock.call_count == 24  # Unlink is tried for all temporary files

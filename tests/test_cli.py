@@ -46,6 +46,10 @@ def test_skip(tmpdir, card):
     assert result.exit_code == 0
     assert "Skipped" in result.output
 
+    for dst in destinations:
+        assert len(list(dst.glob("**/*.mhl"))) == 1
+        assert len(list(dst.glob("**/*.txt"))) == 1
+
 
 def test_not_enough_space(card, mocker):
     class MockUsage:

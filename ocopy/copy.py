@@ -14,7 +14,7 @@ import xxhash
 
 from ocopy.file_info import FileInfo
 from ocopy.hash import multi_xxhash_check, write_xxhash_summary
-from ocopy.mhl import write_mhl
+from ocopy.mhl import write_mhl, find_mhl, get_hash_from_mhl
 from ocopy.progress import get_progress_queue
 from ocopy.utils import threaded, folder_size
 
@@ -182,7 +182,12 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
                 except FileNotFoundError:
                     pass
     else:
-        return "skipped"
+        mhl_file = find_mhl(destinations[0])
+        try:
+            hash_sum = get_hash_from_mhl(mhl_file.read_text(), destinations[0].relative_to(mhl_file.parent))
+            return hash_sum
+        except AttributeError:
+            return ""
 
 
 def copy_and_seal(source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False):
@@ -191,9 +196,8 @@ def copy_and_seal(source: Path, destinations: List[Path], overwrite=False, verif
     start = datetime.datetime.utcnow()
     file_infos = copytree(source, destinations, overwrite=overwrite, verify=verify, skip_existing=skip_existing)
 
-    if not skip_existing:
-        write_mhl(destinations, file_infos, source, start)
-        write_xxhash_summary(destinations, file_infos)
+    write_mhl(destinations, file_infos, source, start)
+    write_xxhash_summary(destinations, file_infos)
 
 
 def _is_cancelled() -> bool:
