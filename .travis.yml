@@ -25,14 +25,19 @@ jobs:
       script: skip
       python: 3.7
       deploy:
-        provider: pypi
-        user: "__token__"
-        password:
-          secure: ucKIfGZwGiFYNOzzWJrz783SEjYecsVbKdSGs9XUDucY5nW3D0LTxf4YxZ8WiWbb3fCuWZH4dU9EHELLxEfDz4BlwVPAFbuyfnEOvVcyset2ruI8Xv6cir/AAfNpr84nNwly7N2MRkCXFS+lL4rUnC8Ge4XMBAK0ENP7TpLUSM4uTM3oLROfTdw0Y2IeTnXVjJQtzyXNFZaqrPUozLGMcPfzC7mFimejmJ9R2ZBXjphQ4OLTx2VWm5iKfjJSGbljFAsv+TmKU35vSLYKsh7Tar3bXWpo4AT0JNNt//jQudC7y+zgovGnbrjHkSU5aqS0Ad4gLrrV2Yc6VrKtq7Lg7Hhr765D2LzCsb8kexgx7FkYbPi8YYC7Bfy9m8Q90us5nG0q0ovtcGJHrs1p4LtpwUgzMhEim60lC1IL7Ql0q2qrffmfPQdiZHBIbgsmXS0XVfwdX0xLl44sI9KD5hph6wtpzUasDvWFBaAJ6XA/ult/FxKIdQ4vzjual1Hco5ZOE+2OKxnHRtKZcffFSs29+b7AHENOBWIPchmCU74EqHY76DizibDaAWGw3NqrvZOYVSiOhAgkVKVDVp/lVZDNu4buDiyELIWZrMMupvvAi0U+yDwtkp4CexSCsJbd6+f8twQVve2yKbDg2ZKBpL5dQ2LnkGQTZRyGwnaGO0BfwCo=
-        on:
-          tags: true
-        skip_existing: true
-
+        - provider: pypi
+          user: "__token__"
+          password:
+            secure: ucKIfGZwGiFYNOzzWJrz783SEjYecsVbKdSGs9XUDucY5nW3D0LTxf4YxZ8WiWbb3fCuWZH4dU9EHELLxEfDz4BlwVPAFbuyfnEOvVcyset2ruI8Xv6cir/AAfNpr84nNwly7N2MRkCXFS+lL4rUnC8Ge4XMBAK0ENP7TpLUSM4uTM3oLROfTdw0Y2IeTnXVjJQtzyXNFZaqrPUozLGMcPfzC7mFimejmJ9R2ZBXjphQ4OLTx2VWm5iKfjJSGbljFAsv+TmKU35vSLYKsh7Tar3bXWpo4AT0JNNt//jQudC7y+zgovGnbrjHkSU5aqS0Ad4gLrrV2Yc6VrKtq7Lg7Hhr765D2LzCsb8kexgx7FkYbPi8YYC7Bfy9m8Q90us5nG0q0ovtcGJHrs1p4LtpwUgzMhEim60lC1IL7Ql0q2qrffmfPQdiZHBIbgsmXS0XVfwdX0xLl44sI9KD5hph6wtpzUasDvWFBaAJ6XA/ult/FxKIdQ4vzjual1Hco5ZOE+2OKxnHRtKZcffFSs29+b7AHENOBWIPchmCU74EqHY76DizibDaAWGw3NqrvZOYVSiOhAgkVKVDVp/lVZDNu4buDiyELIWZrMMupvvAi0U+yDwtkp4CexSCsJbd6+f8twQVve2yKbDg2ZKBpL5dQ2LnkGQTZRyGwnaGO0BfwCo=
+          on:
+            tags: true
+          skip_existing: true
+        - provider: releases
+          api_key:
+            secure: xUJ7YvmdlikJu0Crvo2+z1NpQ/p4wBF6zp0SgxqPyoRaT6lF+2ixKfxsaoJm76Yxq9dgwDX2tO2fcj+sV0sbZyS09/vRPNPLgGT33ppiV14T1m9HQs+F3gZGyxJ2RcPtSTVWrbZ4vzQC2eys8Ncq1XkSnNZytQOf7jgNdIo49gGTkoIy0/QzocvdofmIV8gGS3LqpCoSk4K5uaSZTwT+FoyXtjmGD5Gv1S0korLALWNqmGZKo0/UPt9QCadJcalpO3cDfee8gKBr6qrTl3ov+mquK2P4al/k7dKaIp7D7I2wSlO+j/0QgTB8y0z55CqrqGyHMqiYFb/2p+HeD4Nbq1DJRAyoLY0RIbq9hDPU3y8kIojk7Joqd0XVBmpLFGw9KxOOh3kUSolXC0vy4KF0aQBnXLKJZepaa9Mpw64QNkh06WX07A11haaQTilva1LoeyxCd0lbzXLeFPFLfHfR+8DkX1d7EFkgmBPqB+vnz95YmLrBYUR2afs0hZ3AdEFJuozIOno1BbTJGHd6DZuMZsm3ul0yJpcwpNFuxVCerf4lUdG9Qas0rmRhvYIhmangm2tEtWfy2o4TbpF9SSkdnbe2rChA81yZ6Y8CJCviY9em8svotttTDADWF0DpRD2TeaWfGJ04Uy/aQStdACJv2aroRNvRqTc+7GgOuQnHs60=
+          skip_cleanup: true
+          on:
+            tags: true
   allow_failures:
     - python: "nightly"
 
@@ -45,4 +50,3 @@ script:
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
-

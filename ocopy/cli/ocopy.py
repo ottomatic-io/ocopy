@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List
 
 import click
+import pkg_resources
 
 from ocopy.copy import CopyJob
 from ocopy.utils import folder_size, get_mount
@@ -41,6 +42,8 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destina
 
     Copy SOURCE directory to DESTINATIONS
     """
+    version = pkg_resources.get_distribution("ocopy").version
+
     size = folder_size(source)
     for destination in destinations:
         if shutil.disk_usage(destination).free < size:
