@@ -81,6 +81,9 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destina
     if updater.needs_update:
         click.secho(f"Please update to the latest o/COPY version using `pip3 install -U ocopy`.", fg="blue")
 
+    job.join(timeout=1)
+    updater.join(timeout=1)
+
 
 if __name__ == "__main__":
     cli()  # pragma: no cover

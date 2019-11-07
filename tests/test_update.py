@@ -24,6 +24,7 @@ def test_updater(requests_mock, mocker):
     assert updater.latest_version == LooseVersion("0.6.5")
     assert updater.installed_version == LooseVersion("0.0.1")
     assert updater.needs_update is True
+    updater.join(timeout=1)
 
 
 def test_updater_timeout(requests_mock, mocker):
@@ -48,3 +49,4 @@ def test_updater_timeout(requests_mock, mocker):
 
     assert updater.latest_version is None
     assert updater.needs_update is False
+    updater.join(timeout=1)

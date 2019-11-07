@@ -16,8 +16,5 @@ click = "*"
 defusedxml = "*"
 requests = "*"
 
-[requires]
-python_version = "3.7"
-
 [scripts]
 test = "py.test --cov-report=xml --cov=ocopy -v"

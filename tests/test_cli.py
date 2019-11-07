@@ -11,7 +11,7 @@ from click.testing import CliRunner
 from ocopy.cli.ocopy import cli
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(autouse=True)
 def package():
     class Distribution:
         def __init__(self, _):
@@ -21,7 +21,7 @@ def package():
         yield _fixture
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(autouse=True)
 def github():
     with requests_mock.Mocker() as mock_request:
         mock_request.get("https://api.github.com/repos/OTTOMATIC-IO/ocopy/releases/latest", json={"tag_name": "0.6.5"})
