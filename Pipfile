@@ -7,12 +7,14 @@ verify_ssl = true
 pytest = "*"
 pytest-cov = "*"
 pytest-mock = "*"
+requests-mock = "*"
 
 [packages]
 lxml = "*"
 xxhash = "*"
 click = "*"
 defusedxml = "*"
+requests = "*"
 
 [requires]
 python_version = "3.7"

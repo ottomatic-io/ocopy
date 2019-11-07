@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import List
 
 import click
-import pkg_resources
 
+from ocopy.cli.update import Updater
 from ocopy.copy import CopyJob
 from ocopy.utils import folder_size, get_mount
 
@@ -42,6 +42,8 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destina
 
     Copy SOURCE directory to DESTINATIONS
     """
+    updater = Updater()
+
     size = folder_size(source)
     for destination in destinations:
         if shutil.disk_usage(destination).free < size:
@@ -75,6 +77,9 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destina
             click.secho(f"\nFailed to copy {error.source.name}:\n{error.error_message}", fg="red")
 
         sys.exit(1)
+
+    if updater.needs_update:
+        click.secho(f"Please update to the latest o/COPY version using `pip3 install -U ocopy`.", fg="blue")
 
 
 if __name__ == "__main__":

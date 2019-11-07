@@ -2,10 +2,22 @@ from io import BytesIO
 from pathlib import Path
 from shutil import copystat
 from time import sleep
+from unittest import mock
 
+import pytest
 from click.testing import CliRunner
 
 from ocopy.cli.ocopy import cli
+
+
+@pytest.fixture(scope="session", autouse=True)
+def package():
+    class Distribution:
+        def __init__(self, _):
+            self.version = "0.0.1"
+
+    with mock.patch("pkg_resources.get_distribution", Distribution) as _fixture:
+        yield _fixture
 
 
 def test_help():
@@ -159,3 +171,19 @@ def test_io_error(card, mocker):
     assert "Failed to copy" in result.output
     assert rename_mock.call_count == 21  # Only good files get renamed
     assert unlink_mock.call_count == 24  # Unlink is tried for all temporary files
+
+
+def test_update(requests_mock, mocker, card):
+    class Distribution:
+        def __init__(self, _):
+            self.version = "0.0.1"
+
+    requests_mock.get("https://api.github.com/repos/OTTOMATIC-IO/ocopy/releases/latest", json={"tag_name": "0.6.5"})
+    mocker.patch("pkg_resources.get_distribution", Distribution, create=True)
+
+    src_dir, destinations = card
+
+    runner = CliRunner()
+    result = runner.invoke(cli, [src_dir.as_posix(), *[d.as_posix() for d in destinations]])
+    assert result.exit_code == 0
+    assert "update" in result.output
