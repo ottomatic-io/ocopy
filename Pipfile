@@ -12,6 +12,7 @@ pytest-mock = "*"
 lxml = "*"
 xxhash = "*"
 click = "*"
+defusedxml = "*"
 
 [requires]
 python_version = "3.7"

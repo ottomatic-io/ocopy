@@ -1,11 +1,11 @@
 import datetime
 import getpass
 import os
-import xml.etree.ElementTree as ET
 from _socket import gethostname
 from pathlib import Path
 from typing import List, Optional
 
+from defusedxml import ElementTree
 from lxml import etree
 from lxml.builder import E
 
@@ -70,7 +70,7 @@ def get_hash_from_mhl(mhl: str, file_path: Path) -> str:
         return ""
 
     posix_path = file_path.as_posix()
-    root = ET.fromstring(mhl)
+    root = ElementTree.fromstring(mhl)
 
     for hash_element in root.findall("hash"):
         if hash_element.find("file").text == posix_path:

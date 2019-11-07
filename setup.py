@@ -9,12 +9,7 @@ setup(
     description="Securely copy files to multiple destinations using source and destination verification.",
     entry_points={"console_scripts": ["ocopy = ocopy.cli.ocopy:cli"]},
     include_package_data=True,
-    install_requires=[
-        "click>=7.0",
-        "lxml>=4.4.1",
-        "sh>=1.12.14",
-        "xxhash>=1.4.2",
-    ],
+    install_requires=["click>=7.0", "lxml>=4.4.1", "sh>=1.12.14", "xxhash>=1.4.2", "defusedxml>=0.6.0"],
     dependency_links=[],
     long_description=long_description,
     long_description_content_type="text/markdown",
