@@ -55,15 +55,13 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destina
     if len(destinations) != len({get_mount(d) for d in destinations}):
         click.secho(f"Destinations should all be on different drives.", fg="yellow")
 
-    start = time.time()
     job = CopyJob(Path(source), destinations, overwrite=overwrite, verify=verify, skip_existing=skip_existing)
 
     with click.progressbar(job.progress, length=100, item_show_func=lambda name: name) as progress:
         for _ in progress:
             pass
 
-    stop = time.time()
-    click.echo(f"\n{size / 1000 / 1000 / (stop - start):.2f} MB/s")
+    click.echo(f"\n{job.speed / 1000 / 1000:.2f} MB/s")
 
     if job.skipped_files:
         click.secho(

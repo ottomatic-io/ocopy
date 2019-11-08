@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import datetime
+import time
 from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -234,6 +235,7 @@ class CopyJob(Thread):
         self.total_done = 0
         self.current_item = None
         self.finished = False
+        self._start_time = time.time()
 
         if auto_start:
             self.start()
@@ -255,6 +257,11 @@ class CopyJob(Thread):
     @property
     def percent_done(self) -> int:
         return round(100 / self.todo_size * self.total_done)
+
+    @property
+    def speed(self) -> float:
+        now = time.time()
+        return (self.total_done / 2 if self.verify else self.total_done) / (now - self._start_time)
 
     @property
     def progress(self) -> str:
