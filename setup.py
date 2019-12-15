@@ -16,6 +16,7 @@ setup(
         "xxhash>=1.4.2",
         "defusedxml>=0.6.0",
         "requests>=2.22.0",
+        "timeout_decorator>=0.4.1",
     ],
     dependency_links=[],
     long_description=long_description,

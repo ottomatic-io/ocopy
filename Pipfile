@@ -3,18 +3,20 @@ name = "pypi"
 url = "https://pypi.org/simple"
 verify_ssl = true
 
+[packages]
+click = "*"
+defusedxml = "*"
+lxml = "*"
+requests = "*"
+timeout_decorator = "*"
+xxhash = "*"
+
 [dev-packages]
+atomicwrites = "*"
 pytest = "*"
 pytest-cov = "*"
 pytest-mock = "*"
 requests-mock = "*"
-
-[packages]
-lxml = "*"
-xxhash = "*"
-click = "*"
-defusedxml = "*"
-requests = "*"
 
 [scripts]
 test = "py.test --cov-report=xml --cov=ocopy -v"

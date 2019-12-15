@@ -7,6 +7,7 @@ from typing import List
 
 import click
 
+from ocopy.backup_check import get_missing
 from ocopy.cli.update import Updater
 from ocopy.copy import CopyJob
 from ocopy.utils import folder_size, get_mount
@@ -60,6 +61,35 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destina
     with click.progressbar(job.progress, length=100, item_show_func=lambda name: name) as progress:
         for _ in progress:
             pass
+
+    while not job.finished:
+        time.sleep(0.1)
+        # TODO: break loop if this takes too long
+
+    # TODO: check all destinations in parallel
+    for destination in destinations:
+        missing, _ = get_missing(source, destination / Path(source).name)
+        if missing:
+            missing_list = "\n".join(missing)
+            click.secho(
+                f"\n{len(missing)} file{'s' if len(missing) > 1 else ''} missing on {destination}:\n{missing_list}",
+                fg="red",
+            )
+            click.secho(
+                f"This should not happen! Please contact info@ottomatic.io with as much details as possible.", fg="red"
+            )
+
+        in_progress_files = list((destination / Path(source).name).glob("**/*copy_in_progress*"))
+        if len(in_progress_files):
+            in_progress_list = "\n".join([f.as_posix() for f in in_progress_files])
+            click.secho(
+                f"\n{len(in_progress_files)} file{'s' if len(in_progress_files) > 1 else ''} in progress on "
+                f"{destination}:\n{in_progress_list}",
+                fg="red",
+            )
+            click.secho(
+                f"This should not happen! Please contact info@ottomatic.io with as much details as possible.", fg="red"
+            )
 
     click.echo(f"\n{job.speed / 1000 / 1000:.2f} MB/s")
 

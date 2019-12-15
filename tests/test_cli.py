@@ -42,6 +42,8 @@ def test_copy(card):
     result = runner.invoke(cli, [src_dir.as_posix(), *[d.as_posix() for d in destinations]])
     assert result.exit_code == 0
     assert "different drives" in result.output
+    assert "missing" not in result.output
+    assert "in progress" not in result.output
 
 
 def test_skip(tmpdir, card):
@@ -109,7 +111,6 @@ def test_verification_error(card, mocker):
 
     @contextmanager
     def fake_open(path, options, **kwds):
-        print(f"Open {path}")
         yield FakeIo(path)
 
     def fake_folder_size(*args):
@@ -155,7 +156,6 @@ def test_io_error(card, mocker):
 
     @contextmanager
     def fake_open(path, options, **kwds):
-        print(f"Open {path}")
         yield FakeIo(path)
 
     def fake_folder_size(*args):
