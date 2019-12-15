@@ -3,8 +3,6 @@ import os
 from pathlib import Path
 from typing import List
 
-import timeout_decorator
-
 logger = logging.getLogger(__name__)
 
 
@@ -27,7 +25,6 @@ def get_signatures(path: Path) -> set:
     return signatures
 
 
-@timeout_decorator.timeout(30)
 def get_missing(src: str, dst: str) -> (List[str], int):
     logger.info(f"Searching all files from {src} in {dst}")
     src = Path(src)

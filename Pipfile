@@ -8,7 +8,6 @@ click = "*"
 defusedxml = "*"
 lxml = "*"
 requests = "*"
-timeout_decorator = "*"
 xxhash = "*"
 
 [dev-packages]
