@@ -102,7 +102,20 @@ def copytree(
     for d in destinations:
         d.mkdir(parents=True, exist_ok=True)
 
-    ignored_files = [".DS_Store", ".fseventsd"]
+    ignored_paths = [
+        ".DS_Store",
+        ".DocumentRevisions-V100",
+        ".Spotlight-V100",
+        ".Spotlight",
+        ".TemporaryItems",
+        ".Trashes",
+        ".VolumeIcon.icns",
+        "._.TemporaryItems",
+        "._.Trashes",
+        ".com.apple.timemachine.donotpresent",
+        ".fseventsd",
+        "System Volume Information",
+    ]
 
     file_infos = []
     errors = []
@@ -111,7 +124,7 @@ def copytree(
         if _is_cancelled():
             break
 
-        if src_path.name in ignored_files:
+        if src_path.name in ignored_paths:
             continue
         dst_paths = [d / src_path.name for d in destinations]
         try:
