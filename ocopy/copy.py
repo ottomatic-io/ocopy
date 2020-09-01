@@ -128,9 +128,6 @@ def copytree(
         except OSError as why:
             errors.append(ErrorListEntry(src_path, dst_paths, str(why)))
 
-    for d in destinations:
-        copystat(source, d)
-
     if errors:
         raise CopyTreeError(errors)
 
