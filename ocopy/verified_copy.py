@@ -14,7 +14,7 @@ from typing import List
 import xxhash
 
 from ocopy.file_info import FileInfo
-from ocopy.hash import multi_xxhash_check, write_xxhash_summary
+from ocopy.hash import multi_xxhash_check, write_xxhash_summary, find_hash
 from ocopy.mhl import write_mhl, find_mhl, get_hash_from_mhl
 from ocopy.progress import get_progress_queue
 from ocopy.utils import threaded, folder_size
@@ -178,17 +178,17 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
         tmp_destinations = [d.with_name(d.name + ".copy_in_progress") for d in to_do_destinations]
         try:
             file_hash = copy(src_file, tmp_destinations)
+            present_hash = find_hash(src_file)
 
-            # - Search file hash present on disk
-            # - Check if present hash corresponds to file_hash or raise exception
-            # -
-
-            source_hash = None
-
-            if source_hash:
-                to_verify = tmp_destinations
-            else:
+            if not present_hash:
                 to_verify = tmp_destinations + [src_file]
+            else:
+                to_verify = tmp_destinations
+
+                if present_hash != file_hash:
+                    raise VerificationError(
+                        f"Verification failed for {src_file}. xxHash present on source medium is not correct"
+                    )
 
             # Verify
             if not verify or file_hash == multi_xxhash_check(to_verify):
