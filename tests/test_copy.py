@@ -6,7 +6,7 @@ from time import sleep
 
 import pytest
 
-from ocopy.copy import copy, copytree, copy_and_seal, CopyJob, verified_copy
+from ocopy.verified_copy import copy, copytree, copy_and_seal, CopyJob, verified_copy
 from ocopy.hash import get_hash
 from ocopy.utils import folder_size
 
@@ -63,11 +63,11 @@ def test_copy_mocked(tmpdir, mocker):
     destinations = [tmpdir / d / "test" for d in destinations]
 
     from importlib import reload
-    import ocopy.copy
+    import ocopy.verified_copy
 
-    reload(ocopy.copy)
+    reload(ocopy.verified_copy)
 
-    ocopy.copy.copy(src_file, destinations)
+    ocopy.verified_copy.copy(src_file, destinations)
 
     open_mock().write.assert_has_calls(
         [mocker.call("test content"), mocker.call("test content"), mocker.call("test content")]
@@ -89,11 +89,11 @@ def test_copy_error(tmpdir, mocker):
     destinations = [tmpdir / d / "test" for d in destinations]
 
     from importlib import reload
-    import ocopy.copy
+    import ocopy.verified_copy
 
-    reload(ocopy.copy)
+    reload(ocopy.verified_copy)
     with pytest.raises(IOError):
-        ocopy.copy.copy(src_file, destinations)
+        ocopy.verified_copy.copy(src_file, destinations)
 
 
 def test_verified_copy_skip(tmpdir):
@@ -169,11 +169,11 @@ def test_verified_copy_io_error(tmpdir, mocker):
     destinations = [Path(tmpdir) / d / "test" for d in destinations]
 
     from importlib import reload
-    import ocopy.copy
+    import ocopy.verified_copy
 
-    reload(ocopy.copy)
+    reload(ocopy.verified_copy)
     with pytest.raises(IOError):
-        ocopy.copy.verified_copy(src_file, destinations)
+        ocopy.verified_copy.verified_copy(src_file, destinations)
 
     assert unlink_mock.call_count == 3
 
@@ -213,11 +213,11 @@ def test_verified_copy_verification_error(tmpdir, mocker):
     destinations = [Path(tmpdir) / d / "test" for d in destinations]
 
     from importlib import reload
-    import ocopy.copy
+    import ocopy.verified_copy
 
-    reload(ocopy.copy)
-    with pytest.raises(ocopy.copy.VerificationError):
-        ocopy.copy.verified_copy(src_file, destinations)
+    reload(ocopy.verified_copy)
+    with pytest.raises(ocopy.verified_copy.VerificationError):
+        ocopy.verified_copy.verified_copy(src_file, destinations)
 
     assert unlink_mock.call_count == 3
 
@@ -367,13 +367,13 @@ def test_copy_job_verification_error(card, mocker):
     unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
 
     from importlib import reload
-    import ocopy.copy
+    import ocopy.verified_copy
 
-    reload(ocopy.copy)
+    reload(ocopy.verified_copy)
 
     src_dir, destinations = card
 
-    job = ocopy.copy.CopyJob(src_dir, destinations)
+    job = ocopy.verified_copy.CopyJob(src_dir, destinations)
     assert job.finished is False
 
     while not job.finished:
@@ -412,13 +412,13 @@ def test_copy_job_io_error(card, mocker):
     unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
 
     from importlib import reload
-    import ocopy.copy
+    import ocopy.verified_copy
 
-    reload(ocopy.copy)
+    reload(ocopy.verified_copy)
 
     src_dir, destinations = card
 
-    job = ocopy.copy.CopyJob(src_dir, destinations)
+    job = ocopy.verified_copy.CopyJob(src_dir, destinations)
     assert job.finished is False
 
     while not job.finished:

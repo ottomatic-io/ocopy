@@ -9,7 +9,7 @@ import click
 
 from ocopy.backup_check import get_missing
 from ocopy.cli.update import Updater
-from ocopy.copy import CopyJob
+from ocopy.verified_copy import CopyJob
 from ocopy.utils import folder_size, get_mount
 
 

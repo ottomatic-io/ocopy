@@ -125,9 +125,9 @@ def test_verification_error(card, mocker):
     src_dir, destinations = card
 
     from importlib import reload
-    import ocopy.copy
+    import ocopy.verified_copy
 
-    reload(ocopy.copy)
+    reload(ocopy.verified_copy)
 
     runner = CliRunner()
     result = runner.invoke(cli, [src_dir.as_posix(), *[d.as_posix() for d in destinations]])
@@ -170,9 +170,9 @@ def test_io_error(card, mocker):
     src_dir, destinations = card
 
     from importlib import reload
-    import ocopy.copy
+    import ocopy.verified_copy
 
-    reload(ocopy.copy)
+    reload(ocopy.verified_copy)
 
     runner = CliRunner()
     result = runner.invoke(cli, [src_dir.as_posix(), *[d.as_posix() for d in destinations]])

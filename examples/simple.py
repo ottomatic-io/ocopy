@@ -2,7 +2,7 @@ import tempfile
 from pathlib import Path
 from time import sleep
 
-from ocopy.copy import CopyJob
+from ocopy.verified_copy import CopyJob
 
 
 def simple_example():

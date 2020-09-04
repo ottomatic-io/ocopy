@@ -179,8 +179,19 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
         try:
             file_hash = copy(src_file, tmp_destinations)
 
-            # Verify source and destinations
-            if not verify or file_hash == multi_xxhash_check(tmp_destinations + [src_file]):
+            # - Search file hash present on disk
+            # - Check if present hash corresponds to file_hash or raise exception
+            # -
+
+            source_hash = None
+
+            if source_hash:
+                to_verify = tmp_destinations
+            else:
+                to_verify = tmp_destinations + [src_file]
+
+            # Verify
+            if not verify or file_hash == multi_xxhash_check(to_verify):
                 for tmp in tmp_destinations:
                     tmp.rename(tmp.with_name(tmp.name.replace(".copy_in_progress", "")))
                 return file_hash
