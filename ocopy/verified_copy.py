@@ -115,6 +115,7 @@ def copytree(
         ".com.apple.timemachine.donotpresent",
         ".fseventsd",
         "System Volume Information",
+        "SONYCARD.IND",
     ]
 
     file_infos = []
