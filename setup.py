@@ -12,7 +12,6 @@ setup(
     install_requires=[
         "click>=7.0",
         "lxml>=4.4.1",
-        "sh>=1.12.14",
         "xxhash>=1.4.2",
         "defusedxml>=0.6.0",
         "requests>=2.22.0",
