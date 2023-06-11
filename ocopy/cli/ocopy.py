@@ -33,11 +33,16 @@ from ocopy.utils import folder_size, get_mount
     ),
     default=True,
 )
+@click.option(
+    "--machine-readable/--human-readable",
+    help="Output machine-readable progress (defaults to --human-readable)",
+    default=False,
+)
 @click.argument("source", nargs=1, type=click.Path(exists=True, readable=True, file_okay=False, dir_okay=True))
 @click.argument(
     "destinations", nargs=-1, type=click.Path(exists=True, readable=True, writable=True, file_okay=False, dir_okay=True)
 )
-def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destinations: List[str]):
+def cli(overwrite: bool, verify: bool, skip_existing: bool, machine_readable: bool, source: str, destinations: List[str]):
     """
     o/COPY by OTTOMATIC
 
@@ -54,13 +59,17 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, source: str, destina
 
     destinations = [Path(d) for d in destinations]
     if len(destinations) != len({get_mount(d) for d in destinations}):
-        click.secho(f"Destinations should all be on different drives.", fg="yellow")
+        click.secho("Destinations should all be on different drives.", fg="yellow")
 
     job = CopyJob(Path(source), destinations, overwrite=overwrite, verify=verify, skip_existing=skip_existing)
 
-    with click.progressbar(job.progress, length=100, item_show_func=lambda name: name) as progress:
-        for _ in progress:
-            pass
+    if machine_readable:
+        for _ in job.progress:
+            click.echo(job.percent_done)
+    else:
+        with click.progressbar(job.progress, length=100, item_show_func=lambda name: name) as progress:
+            for _ in progress:
+                pass
 
     while not job.finished:
         time.sleep(0.1)
