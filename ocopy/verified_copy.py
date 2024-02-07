@@ -117,6 +117,7 @@ def copytree(
         "System Volume Information",
         "SONYCARD.IND",
         "SDINFO.TXT",
+        ".SD_PROJECT",
     ]
 
     file_infos = []
