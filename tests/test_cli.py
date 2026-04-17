@@ -46,11 +46,11 @@ def test_copy(card):
     assert "in progress" not in result.output
 
 
-def test_skip(tmpdir, card):
+def test_skip(tmp_path, card):
     _, destinations = card
 
     # Use empty source dir
-    src_dir = Path(tmpdir) / "A001"
+    src_dir = Path(tmp_path) / "A001"
     src_dir.mkdir()
 
     src_file = src_dir / "testfile"

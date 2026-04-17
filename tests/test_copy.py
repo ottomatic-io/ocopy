@@ -96,20 +96,19 @@ def test_copy_error(tmpdir, mocker):
         ocopy.verified_copy.copy(src_file, destinations)
 
 
-def test_verified_copy_skip(tmpdir):
-    tmpdir = Path(tmpdir)
-    src_file = tmpdir / "testfile.txt"
+def test_verified_copy_skip(tmp_path):
+    src_file = tmp_path / "testfile.txt"
     file_size = 1024 * 1024 * 16
     src_file.write_text("x" * file_size)
 
-    destination_dirs = [tmpdir / d / "some" / "sub" / "dir" for d in ["dst_1", "dst_2", "dst_3"]]
+    destination_dirs = [tmp_path / d / "some" / "sub" / "dir" for d in ["dst_1", "dst_2", "dst_3"]]
     for directory in destination_dirs:
         directory.mkdir(parents=True)
 
     destinations = [d / "testfile.txt" for d in destination_dirs]
 
     assert verified_copy(src_file, destinations) == "6878668a929c42c1"
-    (tmpdir / "dst_1" / "test.mhl").write_text(
+    (tmp_path / "dst_1" / "test.mhl").write_text(
         """<?xml version='1.0' encoding='utf-8'?>
         <hashlist version="1.0">
           <creatorinfo>
@@ -134,7 +133,7 @@ def test_verified_copy_skip(tmpdir):
     assert verified_copy(src_file, destinations, skip_existing=True) == "6878668a929c42c1"
 
 
-def test_verified_copy_io_error(tmpdir, mocker):
+def test_verified_copy_io_error(tmp_path, mocker):
     from contextlib import contextmanager
 
     class FakeIo:
@@ -160,13 +159,13 @@ def test_verified_copy_io_error(tmpdir, mocker):
     mocker.patch("pathlib.Path.rename", mocker.Mock())
     unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
 
-    src_file = tmpdir / "test-äöüàéè.txt"
+    src_file = tmp_path / "test-äöüàéè.txt"
 
     destinations = ["dst_1", "dst_2", "dst_3"]
     for d in destinations:
-        tmpdir.mkdir(d)
+        (tmp_path / d).mkdir()
 
-    destinations = [Path(tmpdir) / d / "test" for d in destinations]
+    destinations = [tmp_path / d / "test" for d in destinations]
 
     from importlib import reload
     import ocopy.verified_copy
@@ -178,7 +177,7 @@ def test_verified_copy_io_error(tmpdir, mocker):
     assert unlink_mock.call_count == 3
 
 
-def test_verified_copy_verification_error(tmpdir, mocker):
+def test_verified_copy_verification_error(tmp_path, mocker):
     from contextlib import contextmanager
 
     class FakeIo:
@@ -204,13 +203,13 @@ def test_verified_copy_verification_error(tmpdir, mocker):
     mocker.patch("pathlib.Path.rename", mocker.Mock())
     unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
 
-    src_file = tmpdir / "test-äöüàéè.txt"
+    src_file = tmp_path / "test-äöüàéè.txt"
 
     destinations = ["dst_1", "dst_2", "dst_3"]
     for d in destinations:
-        tmpdir.mkdir(d)
+        (tmp_path / d).mkdir()
 
-    destinations = [Path(tmpdir) / d / "test" for d in destinations]
+    destinations = [tmp_path / d / "test" for d in destinations]
 
     from importlib import reload
     import ocopy.verified_copy

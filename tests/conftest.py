@@ -1,13 +1,11 @@
 import random
-from pathlib import Path
 
 import pytest
 
 
 @pytest.fixture
-def card(tmpdir):
-    tmpdir = Path(tmpdir)
-    src_dir = tmpdir / "src"
+def card(tmp_path):
+    src_dir = tmp_path / "src"
     for card_number in range(1, 3):
         card = src_dir / f"A00{card_number}XXXX"
         card.mkdir(parents=True)
@@ -16,7 +14,7 @@ def card(tmpdir):
             data = random.randint(0, 100) * b"X"
             (card / f"A00{card_number}C00{clip_number}_XXXX_XXXX.mov").write_bytes(data)
 
-    destinations = [tmpdir / f"dst_{i}" for i in range(1, 4)]
+    destinations = [tmp_path / f"dst_{i}" for i in range(1, 4)]
     for d in destinations:
         d.mkdir()
 
