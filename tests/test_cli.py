@@ -83,14 +83,12 @@ def test_no_mhl(card):
 
 
 def test_not_enough_space(card, mocker):
-    class MockUsage:
-        def __init__(self, path):
-            if "dst_3" in Path(path).as_posix():
-                self.free = 0
-            else:
-                self.free = 1024 * 1024 * 1024 * 1024
+    def fake_free_space(path):
+        if "dst_3" in Path(path).as_posix():
+            return 0
+        return 1024 * 1024 * 1024 * 1024
 
-    mocker.patch("shutil.disk_usage", MockUsage, create=True)
+    mocker.patch("ocopy.cli.ocopy.free_space", fake_free_space)
 
     src_dir, destinations = card
 

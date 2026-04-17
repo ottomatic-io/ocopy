@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import shutil
 import sys
 import time
 from pathlib import Path
@@ -8,7 +7,7 @@ import click
 
 from ocopy.backup_check import get_missing
 from ocopy.cli.update import Updater
-from ocopy.utils import folder_size, get_mount
+from ocopy.utils import folder_size, free_space, get_mount
 from ocopy.verified_copy import CopyJob
 
 
@@ -64,8 +63,12 @@ def cli(
 
     size = folder_size(source)
     for destination in destinations:
-        if shutil.disk_usage(destination).free < size:
-            click.secho(f"{destination} does not have enough free space.", fg="red")
+        free = free_space(destination)
+        if free < size:
+            click.secho(
+                f"{destination} does not have enough free space (need {size} bytes, have {free} bytes).",
+                fg="red",
+            )
             sys.exit(1)
     click.secho(f"Copying {source} to {', '.join(destinations)}", fg="green")
 
