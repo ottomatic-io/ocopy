@@ -13,11 +13,7 @@ from ocopy.cli.ocopy import cli
 
 @pytest.fixture(autouse=True)
 def package():
-    class Distribution:
-        def __init__(self, _):
-            self.version = "0.0.1"
-
-    with mock.patch("pkg_resources.get_distribution", Distribution) as _fixture:
+    with mock.patch("ocopy.cli.update.get_version", return_value="0.0.1") as _fixture:
         yield _fixture
 
 
