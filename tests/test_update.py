@@ -1,5 +1,5 @@
 import time
-from distutils.version import LooseVersion
+from packaging.version import Version
 
 import requests
 
@@ -21,8 +21,8 @@ def test_updater(requests_mock, mocker):
     while not updater.finished:
         time.sleep(0.1)
 
-    assert updater.latest_version == LooseVersion("0.6.5")
-    assert updater.installed_version == LooseVersion("0.0.1")
+    assert updater.latest_version == Version("0.6.5")
+    assert updater.installed_version == Version("0.0.1")
     assert updater.needs_update is True
     updater.join(timeout=1)
 

@@ -1,8 +1,11 @@
-from distutils.version import LooseVersion
+import logging
 from threading import Thread
 
 import pkg_resources
 import requests
+from packaging.version import InvalidVersion, Version
+
+logger = logging.getLogger(__name__)
 
 
 class Updater(Thread):
@@ -30,12 +33,33 @@ class Updater(Thread):
         try:
             r = requests.get("https://api.github.com/repos/OTTOMATIC-IO/ocopy/releases/latest")
             r.raise_for_status()
-            self.latest_version = LooseVersion(r.json().get("tag_name"))
+            tag_name = r.json().get("tag_name")
         except requests.exceptions.RequestException:
             self.finished = True
+            return
+
+        self.latest_version = self._parse_version(tag_name)
+
+    @staticmethod
+    def _parse_version(tag_name):
+        if not tag_name:
+            logger.warning("No tag_name returned from GitHub releases API")
+            return None
+
+        try:
+            return Version(tag_name)
+        except InvalidVersion:
+            pass
+
+        normalized = tag_name.strip().lstrip("vV")
+        try:
+            return Version(normalized)
+        except InvalidVersion:
+            logger.warning("Could not parse GitHub release tag as a version: %r", tag_name)
+            return None
 
     def _get_installed_version(self):
         try:
-            self.installed_version = LooseVersion(pkg_resources.get_distribution("ocopy").version)
+            self.installed_version = Version(pkg_resources.get_distribution("ocopy").version)
         except pkg_resources.DistributionNotFound:
             self.finished = True
