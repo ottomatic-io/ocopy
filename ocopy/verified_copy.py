@@ -15,6 +15,7 @@ import xxhash
 
 from ocopy.file_info import FileInfo
 from ocopy.hash import multi_xxhash_check, write_xxhash_summary, find_hash
+from ocopy.ignored import ignored_paths
 from ocopy.mhl import write_mhl, find_mhl, get_hash_from_mhl
 from ocopy.progress import get_progress_queue
 from ocopy.utils import threaded, folder_size
@@ -101,24 +102,6 @@ def copytree(
 
     for d in destinations:
         d.mkdir(parents=True, exist_ok=True)
-
-    ignored_paths = [
-        ".DS_Store",
-        ".DocumentRevisions-V100",
-        ".Spotlight-V100",
-        ".Spotlight",
-        ".TemporaryItems",
-        ".Trashes",
-        ".VolumeIcon.icns",
-        "._.TemporaryItems",
-        "._.Trashes",
-        ".com.apple.timemachine.donotpresent",
-        ".fseventsd",
-        "System Volume Information",
-        "SONYCARD.IND",
-        "SDINFO.TXT",
-        ".SD_PROJECT",
-    ]
 
     file_infos = []
     errors = []
