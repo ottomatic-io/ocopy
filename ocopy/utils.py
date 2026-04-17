@@ -3,6 +3,8 @@ import platform
 from pathlib import Path
 from threading import Thread
 
+from ocopy.ignored import ignored_paths
+
 
 def threaded(fn):
     def wrapper(*args, **kwargs):
@@ -15,7 +17,8 @@ def threaded(fn):
 
 def folder_size(path):
     total = 0
-    for entry in Path(path).glob("**/*"):
+    all_files = [f for f in Path(path).glob("**/*") if not any(dir_ in f.parts for dir_ in ignored_paths)]
+    for entry in all_files:
         if entry.is_file():
             total += entry.stat().st_size
     return total
