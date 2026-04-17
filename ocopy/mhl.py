@@ -19,10 +19,10 @@ def file_info2mhl_hash(file_info: FileInfo, source: Path):
         # FIXME: use path relative to destination instead of source
         E.file(file_info.source.relative_to(source).as_posix()),
         E.size(str(file_info.size)),
-        E.xxhash64be(file_info.file_hash),
         E.lastmodificationdate(
             datetime.datetime.utcfromtimestamp(file_info.mtime).replace(microsecond=0).isoformat() + "Z"
         ),
+        E.xxhash64be(file_info.file_hash),
         E.hashdate(now),
     )
     return new_hash

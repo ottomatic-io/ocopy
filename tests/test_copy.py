@@ -269,6 +269,8 @@ def test_copytree(card):
 
 
 def test_copy_and_seal(card):
+    from defusedxml import ElementTree
+
     src_dir, destinations = card
 
     (src_dir / ".DS_Store").write_text("")
@@ -277,10 +279,24 @@ def test_copy_and_seal(card):
     copy_and_seal(src_dir, destinations)
 
     for dest in destinations:
-        assert len(list((dest / "src").glob("*.mhl"))) == 1
+        mhl_files = list((dest / "src").glob("*.mhl"))
+        assert len(mhl_files) == 1
         assert len((dest / "src" / "xxHash.txt").read_text().splitlines()) == 9
         assert ".DS_Store" not in [e.name for e in dest.glob("**/*")]
         assert ".some_hidden_file" in [e.name for e in dest.glob("**/*")]
+
+        # Child element order inside <hash> must match the MHL v1.1 XSD
+        root = ElementTree.fromstring(mhl_files[0].read_bytes())
+        hash_elements = root.findall("hash")
+        assert hash_elements
+        for hash_element in hash_elements:
+            assert [child.tag for child in hash_element] == [
+                "file",
+                "size",
+                "lastmodificationdate",
+                "xxhash64be",
+                "hashdate",
+            ]
 
 
 def test_copy_job(card):
