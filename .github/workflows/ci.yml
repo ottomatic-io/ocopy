@@ -28,7 +28,7 @@ jobs:
         run: python -m pip install --upgrade pip pipenv
 
       - name: Install dependencies
-        run: pipenv install --dev --deploy
+        run: pipenv install --dev --skip-lock
 
       - name: Run tests
         run: pipenv run test
