@@ -2,7 +2,6 @@ from concurrent import futures
 from functools import partial
 from pathlib import Path
 from queue import Queue
-from typing import List, Optional
 
 import xxhash
 
@@ -12,7 +11,7 @@ from ocopy.mhl import find_mhl, get_hash_from_mhl
 from ocopy.progress import get_progress_queue
 
 
-def get_hash(file_path: Path, progress_queue: Queue = None, total_files: int = 1) -> str:
+def get_hash(file_path: Path, progress_queue: Queue | None = None, total_files: int = 1) -> str:
     x = xxhash.xxh64()
 
     with open(file_path, "rb") as f:
@@ -29,7 +28,7 @@ def get_hash(file_path: Path, progress_queue: Queue = None, total_files: int = 1
     return x.hexdigest()
 
 
-def multi_xxhash_check(filenames: List[Path]) -> str:
+def multi_xxhash_check(filenames: list[Path]) -> str:
     with futures.ThreadPoolExecutor(max_workers=len(filenames)) as executor:
         unique_file_hashes = {
             file_hash
@@ -41,13 +40,13 @@ def multi_xxhash_check(filenames: List[Path]) -> str:
     return unique_file_hashes.pop() if len(unique_file_hashes) == 1 else "hashes_do_not_match"
 
 
-def write_xxhash_summary(destinations: List[Path], file_infos: List[FileInfo]):
+def write_xxhash_summary(destinations: list[Path], file_infos: list[FileInfo]):
     xxhash_info = "\n".join(f"{f.file_hash} {Path(f.source).name}" for f in file_infos) + "\n"
     for d in destinations:
         (d / "xxHash.txt").write_text(xxhash_info)
 
 
-def find_hash(file_path: Path) -> Optional[str]:
+def find_hash(file_path: Path) -> str | None:
     dot_mhl = find_mhl(file_path)
     if dot_mhl:
         file_hash = get_hash_from_mhl(dot_mhl.read_text(), file_path.relative_to(dot_mhl.parent))

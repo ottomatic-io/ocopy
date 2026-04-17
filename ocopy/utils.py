@@ -32,7 +32,7 @@ def get_user_display_name() -> str:
     else:
         import ctypes
 
-        get_user_name_ex = ctypes.windll.secur32.GetUserNameExW
+        get_user_name_ex = ctypes.windll.secur32.GetUserNameExW  # ty: ignore[unresolved-attribute]
         name_display = 3
 
         size = ctypes.pointer(ctypes.c_ulong(0))

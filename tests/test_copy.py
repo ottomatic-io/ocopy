@@ -6,9 +6,17 @@ from time import sleep
 
 import pytest
 
-from ocopy.verified_copy import copy, copytree, copy_and_seal, CopyJob, verified_copy
 from ocopy.hash import get_hash
 from ocopy.utils import folder_size
+from ocopy.verified_copy import (
+    CopyJob,
+    CopyTreeError,
+    VerificationError,
+    copy,
+    copy_and_seal,
+    copytree,
+    verified_copy,
+)
 
 
 def test_get_hash(tmpdir):
@@ -51,7 +59,7 @@ def test_copy(tmpdir):
 
 
 def test_copy_mocked(tmpdir, mocker):
-    copystat_mock = mocker.patch("shutil.copystat", mocker.Mock())
+    copystat_mock = mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
     open_mock = mocker.patch("builtins.open", mocker.mock_open(read_data="test content"))
 
     src_file = tmpdir / "test-äöüàéè.txt"
@@ -62,12 +70,7 @@ def test_copy_mocked(tmpdir, mocker):
 
     destinations = [tmpdir / d / "test" for d in destinations]
 
-    from importlib import reload
-    import ocopy.verified_copy
-
-    reload(ocopy.verified_copy)
-
-    ocopy.verified_copy.copy(src_file, destinations)
+    copy(src_file, destinations)
 
     open_mock().write.assert_has_calls(
         [mocker.call("test content"), mocker.call("test content"), mocker.call("test content")]
@@ -78,7 +81,7 @@ def test_copy_mocked(tmpdir, mocker):
 
 def test_copy_error(tmpdir, mocker):
     open_mock = mocker.patch("builtins.open", mocker.mock_open(read_data="test content"))
-    open_mock.side_effect = IOError()
+    open_mock.side_effect = OSError()
 
     src_file = tmpdir / "test-äöüàéè.txt"
 
@@ -88,12 +91,8 @@ def test_copy_error(tmpdir, mocker):
 
     destinations = [tmpdir / d / "test" for d in destinations]
 
-    from importlib import reload
-    import ocopy.verified_copy
-
-    reload(ocopy.verified_copy)
-    with pytest.raises(IOError):
-        ocopy.verified_copy.copy(src_file, destinations)
+    with pytest.raises(OSError):
+        copy(src_file, destinations)
 
 
 def test_verified_copy_skip(tmp_path):
@@ -147,7 +146,7 @@ def test_verified_copy_io_error(tmp_path, mocker):
         def write(self, data):
             if "dst_3" in Path(self._file_path).as_posix():
                 sleep(0.2)
-                raise IOError()
+                raise OSError()
             return len(data)
 
     @contextmanager
@@ -155,7 +154,7 @@ def test_verified_copy_io_error(tmp_path, mocker):
         yield FakeIo(path)
 
     mocker.patch("builtins.open", fake_open)
-    mocker.patch("shutil.copystat", mocker.Mock())
+    mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
     mocker.patch("pathlib.Path.rename", mocker.Mock())
     unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
 
@@ -167,12 +166,8 @@ def test_verified_copy_io_error(tmp_path, mocker):
 
     destinations = [tmp_path / d / "test" for d in destinations]
 
-    from importlib import reload
-    import ocopy.verified_copy
-
-    reload(ocopy.verified_copy)
-    with pytest.raises(IOError):
-        ocopy.verified_copy.verified_copy(src_file, destinations)
+    with pytest.raises(OSError):
+        verified_copy(src_file, destinations)
 
     assert unlink_mock.call_count == 3
 
@@ -199,7 +194,7 @@ def test_verified_copy_verification_error(tmp_path, mocker):
         yield FakeIo(path)
 
     mocker.patch("builtins.open", fake_open)
-    mocker.patch("shutil.copystat", mocker.Mock())
+    mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
     mocker.patch("pathlib.Path.rename", mocker.Mock())
     unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
 
@@ -211,12 +206,8 @@ def test_verified_copy_verification_error(tmp_path, mocker):
 
     destinations = [tmp_path / d / "test" for d in destinations]
 
-    from importlib import reload
-    import ocopy.verified_copy
-
-    reload(ocopy.verified_copy)
-    with pytest.raises(ocopy.verified_copy.VerificationError):
-        ocopy.verified_copy.verified_copy(src_file, destinations)
+    with pytest.raises(VerificationError):
+        verified_copy(src_file, destinations)
 
     assert unlink_mock.call_count == 3
 
@@ -251,13 +242,12 @@ def test_copytree(card):
     (src_sub_folders / "existing_file").write_text("foo")
     (dst_sub_folders / "existing_file").write_text("foo")
 
-    # FIXME: Expect FileExistsError
-    with pytest.raises(Exception):
+    with pytest.raises(CopyTreeError):
         copytree(src_dir, [destination])
 
     # Only skip when the modification times match
     os.utime((dst_sub_folders / "existing_file"), (0, 0))
-    with pytest.raises(Exception):
+    with pytest.raises(CopyTreeError):
         copytree(src_dir, [destination], skip_existing=True)
 
     # Make the mtime match
@@ -359,7 +349,7 @@ def test_copy_job_progress(card):
 
     # Make sure to get 100 progress updates
     progress = 0
-    for progress, file_name in enumerate(job.progress, start=1):
+    for progress, _file_name in enumerate(job.progress, start=1):  # noqa: B007  (used after loop)
         pass
 
     assert progress == 100
@@ -387,18 +377,13 @@ def test_copy_job_verification_error(card, mocker):
         yield FakeIo(path)
 
     mocker.patch("builtins.open", fake_open)
-    mocker.patch("shutil.copystat", mocker.Mock())
+    mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
     rename_mock = mocker.patch("pathlib.Path.rename", mocker.Mock())
     unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
 
-    from importlib import reload
-    import ocopy.verified_copy
-
-    reload(ocopy.verified_copy)
-
     src_dir, destinations = card
 
-    job = ocopy.verified_copy.CopyJob(src_dir, destinations)
+    job = CopyJob(src_dir, destinations)
     assert job.finished is False
 
     while not job.finished:
@@ -424,7 +409,7 @@ def test_copy_job_io_error(card, mocker):
         def write(self, data):
             if "dst_3/src/A001XXXX/A001C001_XXXX_XXXX.mov.copy_in_progress" in Path(self._file_path).as_posix():
                 sleep(0.2)
-                raise IOError("IO Error")
+                raise OSError("IO Error")
             return len(data)
 
     @contextmanager
@@ -432,18 +417,13 @@ def test_copy_job_io_error(card, mocker):
         yield FakeIo(path)
 
     mocker.patch("builtins.open", fake_open)
-    mocker.patch("shutil.copystat", mocker.Mock())
+    mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
     rename_mock = mocker.patch("pathlib.Path.rename", mocker.Mock())
     unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
 
-    from importlib import reload
-    import ocopy.verified_copy
-
-    reload(ocopy.verified_copy)
-
     src_dir, destinations = card
 
-    job = ocopy.verified_copy.CopyJob(src_dir, destinations)
+    job = CopyJob(src_dir, destinations)
     assert job.finished is False
 
     while not job.finished:

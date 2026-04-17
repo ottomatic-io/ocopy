@@ -1,5 +1,6 @@
 import logging
-from importlib.metadata import PackageNotFoundError, version as get_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as get_version
 from threading import Thread
 
 import requests

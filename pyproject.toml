@@ -1,2 +1,59 @@
-[tool.black]
+[build-system]
+requires = ["setuptools>=77", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ocopy"
+dynamic = ["version"]
+description = "Securely copy files to multiple destinations using source and destination verification."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "LGPL-3.0-or-later"
+authors = [{ name = "Ben Hagen", email = "ben@ottomatic.io" }]
+classifiers = [
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "click>=7.0",
+    "lxml>=4.4.1",
+    "xxhash>=1.4.2",
+    "defusedxml>=0.6.0",
+    "requests>=2.22.0",
+]
+
+[project.scripts]
+ocopy = "ocopy.cli.ocopy:cli"
+
+[project.urls]
+Homepage = "https://github.com/ottomatic-io/ocopy"
+
+[tool.setuptools.packages.find]
+include = ["ocopy*"]
+
+[tool.setuptools_scm]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "requests-mock",
+    "atomicwrites",
+    "ruff",
+    "ty",
+]
+
+[tool.pytest.ini_options]
+norecursedirs = ["venv", "dist", "build", ".venv"]
+addopts = "--cov-report=xml --cov=ocopy -v"
+
+[tool.ruff]
 line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ty.src]
+include = ["ocopy", "tests"]

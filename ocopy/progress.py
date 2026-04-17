@@ -1,10 +1,6 @@
 from queue import Queue
-from threading import currentThread
-from typing import Optional
+from threading import current_thread
 
 
-def get_progress_queue() -> Optional[Queue]:
-    try:
-        return currentThread()._progress_queue
-    except AttributeError:
-        return None
+def get_progress_queue() -> Queue | None:
+    return getattr(current_thread(), "_progress_queue", None)

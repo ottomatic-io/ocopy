@@ -29,7 +29,7 @@ def simple_example():
             print(f"Failed to copy {error.source.name}:\n{error.error_message}")
 
         # Show content of the mhl file
-        mhl_file_content = list(destinations[0].glob("**/*.mhl"))[0].read_text()
+        mhl_file_content = next(destinations[0].glob("**/*.mhl")).read_text()
         print(mhl_file_content)
 
 

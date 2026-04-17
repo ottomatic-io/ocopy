@@ -126,16 +126,11 @@ def test_verification_error(card, mocker):
 
     mocker.patch("builtins.open", fake_open)
     mocker.patch("ocopy.utils.folder_size", fake_folder_size)
-    mocker.patch("shutil.copystat", mocker.Mock())
+    mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
     rename_mock = mocker.patch("pathlib.Path.rename", mocker.Mock())
     unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
 
     src_dir, destinations = card
-
-    from importlib import reload
-    import ocopy.verified_copy
-
-    reload(ocopy.verified_copy)
 
     runner = CliRunner()
     result = runner.invoke(cli, [src_dir.as_posix(), *[d.as_posix() for d in destinations]])
@@ -159,7 +154,7 @@ def test_io_error(card, mocker):
         def write(self, data):
             if "dst_3/src/A001XXXX/A001C001_XXXX_XXXX.mov.copy_in_progress" in Path(self._file_path).as_posix():
                 sleep(0.2)
-                raise IOError("IO Error")
+                raise OSError("IO Error")
             return len(data)
 
     @contextmanager
@@ -171,16 +166,11 @@ def test_io_error(card, mocker):
 
     mocker.patch("builtins.open", fake_open)
     mocker.patch("ocopy.utils.folder_size", fake_folder_size)
-    mocker.patch("shutil.copystat", mocker.Mock())
+    mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
     rename_mock = mocker.patch("pathlib.Path.rename", mocker.Mock())
     unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
 
     src_dir, destinations = card
-
-    from importlib import reload
-    import ocopy.verified_copy
-
-    reload(ocopy.verified_copy)
 
     runner = CliRunner()
     result = runner.invoke(cli, [src_dir.as_posix(), *[d.as_posix() for d in destinations]])

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ocopy.mhl import get_hash_from_mhl, find_mhl
+from ocopy.mhl import find_mhl, get_hash_from_mhl
 
 
 def test_get_hash_from_mhl():
@@ -28,11 +28,12 @@ def test_get_hash_from_mhl():
 
 def test_find_mhl(tmpdir):
     tmpdir = Path(tmpdir)
-    mhl_path = (tmpdir / "some.mhl")
+    mhl_path = tmpdir / "some.mhl"
     mhl_path.write_text("some data")
 
     file_dir = tmpdir / "some" / "sub" / "dir"
     file_dir.mkdir(parents=True)
 
-    assert find_mhl(file_dir / "some_file.mov").read_text() == "some data"
-
+    found = find_mhl(file_dir / "some_file.mov")
+    assert found is not None
+    assert found.read_text() == "some data"

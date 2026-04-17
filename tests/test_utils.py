@@ -2,7 +2,7 @@ import platform
 from pathlib import Path
 from time import sleep
 
-from ocopy.utils import threaded, folder_size, get_user_display_name, get_mount
+from ocopy.utils import folder_size, get_mount, get_user_display_name, threaded
 
 
 def test_threaded():
@@ -25,7 +25,7 @@ def test_folder_size(tmpdir):
             for x in range(3):
                 (path / str(x)).write_bytes(b"X" * 3)
 
-    assert folder_size(tmpdir) == 3 ** 4
+    assert folder_size(tmpdir) == 3**4
 
 
 def test_get_user_display_name():

@@ -1,9 +1,8 @@
 import os
 from pathlib import Path
-from typing import Optional
 
 
-def find_dot_xxhash(file_path: Path) -> Optional[Path]:
+def find_dot_xxhash(file_path: Path) -> Path | None:
     """
     Finds the last created .xxhash which is closest in the folder hierarchy
     """

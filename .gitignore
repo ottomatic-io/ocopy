@@ -12,3 +12,6 @@ pip-wheel-metadata/
 coverage.xml
 .coverage
 .DS_Store
+.venv/
+.ruff_cache/
+.pytest_cache/

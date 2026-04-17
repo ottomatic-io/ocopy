@@ -3,14 +3,13 @@ import shutil
 import sys
 import time
 from pathlib import Path
-from typing import List
 
 import click
 
 from ocopy.backup_check import get_missing
 from ocopy.cli.update import Updater
-from ocopy.verified_copy import CopyJob
 from ocopy.utils import folder_size, get_mount
+from ocopy.verified_copy import CopyJob
 
 
 @click.command()
@@ -54,7 +53,7 @@ def cli(
     machine_readable: bool,
     mhl: bool,
     source: str,
-    destinations: List[str],
+    destinations: list[str],
 ):
     """
     o/COPY by OTTOMATIC
@@ -70,12 +69,12 @@ def cli(
             sys.exit(1)
     click.secho(f"Copying {source} to {', '.join(destinations)}", fg="green")
 
-    destinations = [Path(d) for d in destinations]
-    if len(destinations) != len({get_mount(d) for d in destinations}):
+    destination_paths = [Path(d) for d in destinations]
+    if len(destination_paths) != len({get_mount(d) for d in destination_paths}):
         click.secho("Destinations should all be on different drives.", fg="yellow")
 
     job = CopyJob(
-        Path(source), destinations, overwrite=overwrite, verify=verify, skip_existing=skip_existing, mhl=mhl
+        Path(source), destination_paths, overwrite=overwrite, verify=verify, skip_existing=skip_existing, mhl=mhl
     )
 
     if machine_readable:
@@ -91,8 +90,8 @@ def cli(
         # TODO: break loop if this takes too long
 
     # TODO: check all destinations in parallel
-    for destination in destinations:
-        missing, _ = get_missing(source, destination / Path(source).name)
+    for destination in destination_paths:
+        missing, _ = get_missing(source, str(destination / Path(source).name))
         if missing:
             missing_list = "\n".join(missing)
             click.secho(
@@ -100,7 +99,7 @@ def cli(
                 fg="red",
             )
             click.secho(
-                f"This should not happen! Please contact info@ottomatic.io with as much details as possible.", fg="red"
+                "This should not happen! Please contact info@ottomatic.io with as much details as possible.", fg="red"
             )
 
         in_progress_files = list((destination / Path(source).name).glob("**/*copy_in_progress*"))
@@ -112,7 +111,7 @@ def cli(
                 fg="red",
             )
             click.secho(
-                f"This should not happen! Please contact info@ottomatic.io with as much details as possible.", fg="red"
+                "This should not happen! Please contact info@ottomatic.io with as much details as possible.", fg="red"
             )
 
     click.echo(f"\n{job.speed / 1000 / 1000:.2f} MB/s")
@@ -131,7 +130,7 @@ def cli(
         sys.exit(1)
 
     if updater.needs_update:
-        click.secho(f"Please update to the latest o/COPY version using `pip3 install -U ocopy`.", fg="blue")
+        click.secho("Please update to the latest o/COPY version using `pip3 install -U ocopy`.", fg="blue")
 
     job.join(timeout=1)
     updater.join(timeout=1)

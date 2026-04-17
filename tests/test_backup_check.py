@@ -32,7 +32,7 @@ def data():
 
 
 def test_basic(data):
-    card, backup, backup_destination = data
+    card, backup, _backup_destination = data
 
     # No files should be missing
     assert get_missing(str(card), str(backup)) == ([], 4)

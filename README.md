@@ -1,9 +1,9 @@
 # o/COPY
 
-[![PyPI version](https://travis-ci.org/OTTOMATIC-IO/ocopy.svg?branch=master)](https://travis-ci.org/OTTOMATIC-IO/ocopy)
+[![CI](https://github.com/OTTOMATIC-IO/ocopy/actions/workflows/ci.yml/badge.svg)](https://github.com/OTTOMATIC-IO/ocopy/actions/workflows/ci.yml)
 [![PyPI version](https://badge.fury.io/py/ocopy.svg)](https://pypi.org/project/ocopy/)
 [![GitHub license](https://img.shields.io/github/license/OTTOMATIC-IO/ocopy.svg)](https://github.com/OTTOMATIC-IO/ocopy/blob/master/LICENSE)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![codecov](https://codecov.io/gh/OTTOMATIC-IO/ocopy/branch/master/graph/badge.svg)](https://codecov.io/gh/OTTOMATIC-IO/ocopy)
 
 A multi destination copy tool / library with source and destination verification using xxHash.
@@ -11,9 +11,28 @@ A multi destination copy tool / library with source and destination verification
 ## Installation / Update
 
 ### With pip
-If you have Python 3 installed you can just use `pip`:
+If you have Python 3.10 or newer installed you can just use `pip`:
 ```
 pip3 install -U ocopy
+```
+
+## Development
+
+This project uses [uv](https://docs.astral.sh/uv/) for dependency management,
+[Ruff](https://docs.astral.sh/ruff/) for linting and formatting, and
+[ty](https://docs.astral.sh/ty/) for type checking.
+
+```shell
+# Create the virtual environment and install runtime + dev dependencies
+uv sync
+
+# Run tests
+uv run pytest
+
+# Lint, format, and type check
+uv run ruff check .
+uv run ruff format .
+uv run ty check
 ```
 
 ## Usage

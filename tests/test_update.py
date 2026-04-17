@@ -1,13 +1,14 @@
 import time
-from packaging.version import Version
 
 import requests
+from packaging.version import Version
 
 
 def test_updater(requests_mock, mocker):
     requests_mock.get("https://api.github.com/repos/OTTOMATIC-IO/ocopy/releases/latest", json={"tag_name": "0.6.5"})
 
     from importlib import reload
+
     import ocopy.cli.update
 
     reload(ocopy.cli.update)
@@ -29,6 +30,7 @@ def test_updater_timeout(requests_mock, mocker):
     )
 
     from importlib import reload
+
     import ocopy.cli.update
 
     reload(ocopy.cli.update)

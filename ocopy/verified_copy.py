@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
+import contextlib
 import datetime
 import time
+from collections.abc import Iterator
 from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from queue import Queue
 from shutil import copystat
-from threading import Thread, Event, currentThread
+from threading import Event, Thread, current_thread
 from time import sleep
-from typing import List
 
 import xxhash
 
 from ocopy.file_info import FileInfo
-from ocopy.hash import multi_xxhash_check, write_xxhash_summary, find_hash
+from ocopy.hash import find_hash, multi_xxhash_check, write_xxhash_summary
 from ocopy.ignored import ignored_paths
-from ocopy.mhl import write_mhl, find_mhl, get_hash_from_mhl
+from ocopy.mhl import find_mhl, get_hash_from_mhl, write_mhl
 from ocopy.progress import get_progress_queue
-from ocopy.utils import threaded, folder_size
+from ocopy.utils import folder_size, threaded
 
 
 class CopyTreeError(OSError):
@@ -44,11 +45,11 @@ class ErrorListEntry:
     """
 
     source: Path
-    destinations: List[Path]
+    destinations: list[Path]
     error_message: str
 
 
-def copy(src_file: Path, destinations: List[Path], chunk_size: int = 1024 * 1024) -> str:
+def copy(src_file: Path, destinations: list[Path], chunk_size: int = 1024 * 1024) -> str:
     """
     Copies one file to multiple destinations chunk by chunk while calculating the checksum
     """
@@ -96,8 +97,8 @@ def copy(src_file: Path, destinations: List[Path], chunk_size: int = 1024 * 1024
 
 
 def copytree(
-    source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False
-) -> List[FileInfo]:
+    source: Path, destinations: list[Path], overwrite=False, verify=True, skip_existing=False
+) -> list[FileInfo]:
     """Recursively copy a source directory to multiple destinations"""
 
     for d in destinations:
@@ -133,7 +134,7 @@ def copytree(
     return file_infos
 
 
-def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False) -> str:
+def verified_copy(src_file: Path, destinations: list[Path], overwrite=False, verify=True, skip_existing=False) -> str:
     """
     Copies one file to multiple destinations.
 
@@ -150,10 +151,8 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
                 and src_file.stat().st_size == destination.stat().st_size
                 and abs(src_file.stat().st_mtime - destination.stat().st_mtime) <= 2
             ):
-                try:
-                    currentThread().skipped_files += 1
-                except AttributeError:
-                    pass
+                thread = current_thread()
+                thread.skipped_files = getattr(thread, "skipped_files", 0) + 1  # ty: ignore[unresolved-attribute]
                 to_do_destinations.remove(destination)
             elif overwrite:
                 destination.unlink()
@@ -167,7 +166,7 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
             present_hash = find_hash(src_file)
 
             if not present_hash:
-                to_verify = tmp_destinations + [src_file]
+                to_verify = [*tmp_destinations, src_file]
             else:
                 to_verify = tmp_destinations
 
@@ -185,25 +184,23 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
                 raise VerificationError(f"Verification failed for {src_file}")
         finally:
             for tmp in tmp_destinations:
-                try:
+                with contextlib.suppress(FileNotFoundError):
                     tmp.unlink()
-                except FileNotFoundError:
-                    pass
     else:
         mhl_file = find_mhl(destinations[0])
+        if mhl_file is None:
+            return ""
         try:
             hash_sum = get_hash_from_mhl(mhl_file.read_text(), destinations[0].relative_to(mhl_file.parent))
-            return hash_sum
+            return hash_sum or ""
         except AttributeError:
             return ""
 
 
-def copy_and_seal(
-    source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False, mhl=True
-):
+def copy_and_seal(source: Path, destinations: list[Path], overwrite=False, verify=True, skip_existing=False, mhl=True):
     destinations = [d / source.name for d in destinations]
 
-    start = datetime.datetime.utcnow()
+    start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     file_infos = copytree(source, destinations, overwrite=overwrite, verify=verify, skip_existing=skip_existing)
 
     if mhl:
@@ -212,22 +209,19 @@ def copy_and_seal(
 
 
 def _is_cancelled() -> bool:
-    try:
-        return currentThread().cancelled
-    except AttributeError:
-        return False
+    return getattr(current_thread(), "cancelled", False)
 
 
 class CopyJob(Thread):
     total_size: int
     total_done: int
     finished: bool
-    errors: List[ErrorListEntry]
+    errors: list[ErrorListEntry]
 
     def __init__(
         self,
         source: Path,
-        destinations: List[Path],
+        destinations: list[Path],
         overwrite=False,
         verify=True,
         skip_existing=False,
@@ -263,7 +257,7 @@ class CopyJob(Thread):
 
     @property
     def cancelled(self) -> bool:
-        return self._cancel.isSet()
+        return self._cancel.is_set()
 
     @threaded
     def _progress_reader(self):
@@ -282,7 +276,7 @@ class CopyJob(Thread):
         return (self.total_done / 2 if self.verify else self.total_done) / (now - self._start_time)
 
     @property
-    def progress(self) -> str:
+    def progress(self) -> Iterator[str | None]:
         for i in range(1, 101):
             while self.percent_done < i:
                 sleep(0.1)
