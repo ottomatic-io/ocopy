@@ -81,7 +81,7 @@ def find_mhl(file_path: Path) -> Optional[Path]:
     """
     Finds the last created mhl which is closest in the folder hierarchy
     """
-    if os.path.ismount(file_path.as_posix()):
+    if os.path.ismount(file_path):
         return
 
     mhl_in_parent = sorted(list(file_path.parent.glob("*.mhl")))
