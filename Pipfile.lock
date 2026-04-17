@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "8593e55ef79467aa3dbe537b13829f644c17e3559f29cda1d5b60e69ce5fe36b"
+            "sha256": "3023d488998b09a1db20f0e4663dfbd1f347ace60e75648169bdb2e1b4483b7c"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -228,6 +228,10 @@
             "index": "pypi",
             "markers": "python_version >= '3.6'",
             "version": "==5.1.0"
+        },
+        "ocopy": {
+            "editable": true,
+            "file": "."
         },
         "requests": {
             "hashes": [

@@ -9,6 +9,7 @@ defusedxml = "*"
 lxml = "*"
 requests = "*"
 xxhash = "*"
+ocopy = {file = ".", editable = true}
 
 [dev-packages]
 atomicwrites = "*"
