@@ -1,7 +1,7 @@
 import logging
+from importlib.metadata import PackageNotFoundError, version as get_version
 from threading import Thread
 
-import pkg_resources
 import requests
 from packaging.version import InvalidVersion, Version
 
@@ -60,6 +60,6 @@ class Updater(Thread):
 
     def _get_installed_version(self):
         try:
-            self.installed_version = Version(pkg_resources.get_distribution("ocopy").version)
-        except pkg_resources.DistributionNotFound:
+            self.installed_version = Version(get_version("ocopy"))
+        except PackageNotFoundError:
             self.finished = True

@@ -5,17 +5,13 @@ import requests
 
 
 def test_updater(requests_mock, mocker):
-    class Distribution:
-        def __init__(self, _):
-            self.version = "0.0.1"
-
-    mocker.patch("pkg_resources.get_distribution", Distribution)
     requests_mock.get("https://api.github.com/repos/OTTOMATIC-IO/ocopy/releases/latest", json={"tag_name": "0.6.5"})
 
     from importlib import reload
     import ocopy.cli.update
 
     reload(ocopy.cli.update)
+    mocker.patch.object(ocopy.cli.update, "get_version", return_value="0.0.1")
 
     updater = ocopy.cli.update.Updater()
     while not updater.finished:
@@ -28,12 +24,6 @@ def test_updater(requests_mock, mocker):
 
 
 def test_updater_timeout(requests_mock, mocker):
-    class Distribution:
-        def __init__(self, _):
-            self.version = "0.0.1"
-
-    mocker.patch("pkg_resources.get_distribution", Distribution)
-
     requests_mock.get(
         "https://api.github.com/repos/OTTOMATIC-IO/ocopy/releases/latest", exc=requests.exceptions.ConnectTimeout
     )
@@ -42,6 +32,7 @@ def test_updater_timeout(requests_mock, mocker):
     import ocopy.cli.update
 
     reload(ocopy.cli.update)
+    mocker.patch.object(ocopy.cli.update, "get_version", return_value="0.0.1")
 
     updater = ocopy.cli.update.Updater()
     while not updater.finished:
