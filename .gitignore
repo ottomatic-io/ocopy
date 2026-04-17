@@ -9,3 +9,6 @@ testdir*
 build
 dist
 pip-wheel-metadata/
+coverage.xml
+.coverage
+.DS_Store
