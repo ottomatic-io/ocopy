@@ -53,12 +53,34 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
 
+      - name: Build release notes from git log
+        id: notes
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          prev=$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true)
+          {
+            echo "## What's Changed"
+            echo
+            if [ -n "$prev" ]; then
+              git log --no-merges --reverse --pretty=format:'- %s' "${prev}..${tag}"
+              echo
+              echo
+              echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${prev}...${tag}"
+            else
+              git log --no-merges --reverse --pretty=format:'- %s' "${tag}"
+            fi
+          } > release_notes.md
+
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          generate_release_notes: true
+          body_path: release_notes.md
