@@ -299,6 +299,16 @@ def test_copy_and_seal(card):
             ]
 
 
+def test_copy_and_seal_no_mhl(card):
+    src_dir, destinations = card
+
+    copy_and_seal(src_dir, destinations, mhl=False)
+
+    for dest in destinations:
+        assert list((dest / "src").glob("*.mhl")) == []
+        assert (dest / "src" / "xxHash.txt").exists()
+
+
 def test_copy_job(card):
     src_dir, destinations = card
 

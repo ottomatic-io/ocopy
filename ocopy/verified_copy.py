@@ -198,13 +198,16 @@ def verified_copy(src_file: Path, destinations: List[Path], overwrite=False, ver
             return ""
 
 
-def copy_and_seal(source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False):
+def copy_and_seal(
+    source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False, mhl=True
+):
     destinations = [d / source.name for d in destinations]
 
     start = datetime.datetime.utcnow()
     file_infos = copytree(source, destinations, overwrite=overwrite, verify=verify, skip_existing=skip_existing)
 
-    write_mhl(destinations, file_infos, source, start)
+    if mhl:
+        write_mhl(destinations, file_infos, source, start)
     write_xxhash_summary(destinations, file_infos)
 
 
@@ -222,7 +225,14 @@ class CopyJob(Thread):
     errors: List[ErrorListEntry]
 
     def __init__(
-        self, source: Path, destinations: List[Path], overwrite=False, verify=True, skip_existing=False, auto_start=True
+        self,
+        source: Path,
+        destinations: List[Path],
+        overwrite=False,
+        verify=True,
+        skip_existing=False,
+        mhl=True,
+        auto_start=True,
     ):
         super().__init__()
         self.daemon = True
@@ -236,6 +246,7 @@ class CopyJob(Thread):
         self.overwrite = overwrite
         self.verify = verify
         self.skip_existing = skip_existing
+        self.mhl = mhl
 
         self.total_size = folder_size(source)
         self.todo_size = self.total_size * (2 if self.verify else 1)
@@ -291,6 +302,7 @@ class CopyJob(Thread):
                 overwrite=self.overwrite,
                 verify=self.verify,
                 skip_existing=self.skip_existing,
+                mhl=self.mhl,
             )
 
         except CopyTreeError as e:

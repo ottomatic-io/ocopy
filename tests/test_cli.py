@@ -70,6 +70,18 @@ def test_skip(tmp_path, card):
         assert len(list(dst.glob("**/*.txt"))) == 1
 
 
+def test_no_mhl(card):
+    src_dir, destinations = card
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["--no-mhl", src_dir.as_posix(), *[d.as_posix() for d in destinations]])
+    assert result.exit_code == 0
+
+    for dst in destinations:
+        assert list(dst.glob("**/*.mhl")) == []
+        assert len(list(dst.glob("**/xxHash.txt"))) == 1
+
+
 def test_not_enough_space(card, mocker):
     class MockUsage:
         def __init__(self, path):

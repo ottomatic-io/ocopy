@@ -38,11 +38,24 @@ from ocopy.utils import folder_size, get_mount
     help="Output machine-readable progress (defaults to --human-readable)",
     default=False,
 )
+@click.option(
+    "--mhl/--no-mhl",
+    help="Write an MHL (Media Hash List) file to each destination (defaults to --mhl)",
+    default=True,
+)
 @click.argument("source", nargs=1, type=click.Path(exists=True, readable=True, file_okay=False, dir_okay=True))
 @click.argument(
     "destinations", nargs=-1, type=click.Path(exists=True, readable=True, writable=True, file_okay=False, dir_okay=True)
 )
-def cli(overwrite: bool, verify: bool, skip_existing: bool, machine_readable: bool, source: str, destinations: List[str]):
+def cli(
+    overwrite: bool,
+    verify: bool,
+    skip_existing: bool,
+    machine_readable: bool,
+    mhl: bool,
+    source: str,
+    destinations: List[str],
+):
     """
     o/COPY by OTTOMATIC
 
@@ -61,7 +74,9 @@ def cli(overwrite: bool, verify: bool, skip_existing: bool, machine_readable: bo
     if len(destinations) != len({get_mount(d) for d in destinations}):
         click.secho("Destinations should all be on different drives.", fg="yellow")
 
-    job = CopyJob(Path(source), destinations, overwrite=overwrite, verify=verify, skip_existing=skip_existing)
+    job = CopyJob(
+        Path(source), destinations, overwrite=overwrite, verify=verify, skip_existing=skip_existing, mhl=mhl
+    )
 
     if machine_readable:
         for _ in job.progress:
