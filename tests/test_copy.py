@@ -20,6 +20,26 @@ from ocopy.verified_copy import (
 )
 
 
+def _install_counting_rename_tmps(mocker):
+    """Count tmp→final commits by wrapping :func:`ocopy.verified_copy._rename_tmps`.
+
+    Tests often mock ``pathlib.Path.rename``; counting those calls picks up every
+    thread. Summing ``len(tmps)`` per wrapper call matches the number of
+    successful commits for this pipeline only.
+    """
+    import ocopy.verified_copy as vc
+
+    real_rename_tmps = vc._rename_tmps
+    counter: dict[str, int] = {"n": 0}
+
+    def wrapped(tmps, final_paths):
+        counter["n"] += len(tmps)
+        return real_rename_tmps(tmps, final_paths)
+
+    mocker.patch("ocopy.verified_copy._rename_tmps", wrapped)
+    return counter
+
+
 def test_get_hash(tmpdir):
     p = Path(tmpdir) / "test-äöüàéè.txt"
 
@@ -514,9 +534,12 @@ def test_copy_job_verification_error(card, mocker):
     mocker.patch("builtins.open", fake_open)
     mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
     mocker.patch("pathlib.Path.rename", mocker.Mock())
+    rename_count = _install_counting_rename_tmps(mocker)
     mocker.patch("pathlib.Path.unlink", autospec=True, side_effect=_capture_unlink)
 
     src_dir, destinations = card
+    media_file_count = sum(1 for p in src_dir.rglob("*.mov") if p.is_file())
+    expected_rename_commits = (media_file_count - 1) * len(destinations)
 
     job = CopyJob(src_dir, destinations)
     assert job.finished is False
@@ -526,9 +549,10 @@ def test_copy_job_verification_error(card, mocker):
 
     assert len(job.errors) == 1
     assert "Verification failed" in job.errors[0].error_message
+    assert rename_count["n"] == expected_rename_commits
 
     # Assert semantically that the failing file's tmps were cleaned up on every
-    # destination. Exact Path.rename call counts are fragile (other threads, mocks).
+    # destination.
     expected_tmps = {dest / "src" / "A001XXXX" / "A001C001_XXXX_XXXX.mov.copy_in_progress" for dest in destinations}
     assert expected_tmps <= set(unlinked_paths)
 
@@ -562,9 +586,12 @@ def test_copy_job_io_error(card, mocker):
     mocker.patch("builtins.open", fake_open)
     mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
     mocker.patch("pathlib.Path.rename", mocker.Mock())
+    rename_count = _install_counting_rename_tmps(mocker)
     mocker.patch("pathlib.Path.unlink", autospec=True, side_effect=_capture_unlink)
 
     src_dir, destinations = card
+    media_file_count = sum(1 for p in src_dir.rglob("*.mov") if p.is_file())
+    expected_rename_commits = (media_file_count - 1) * len(destinations)
 
     job = CopyJob(src_dir, destinations)
     assert job.finished is False
@@ -574,8 +601,9 @@ def test_copy_job_io_error(card, mocker):
 
     assert len(job.errors) == 1
     assert "IO Error" in job.errors[0].error_message
+    assert rename_count["n"] == expected_rename_commits
 
     # Assert semantically that the failing file's tmps were cleaned up on every
-    # destination. Exact Path.rename call counts are fragile (other threads, mocks).
+    # destination.
     expected_tmps = {dest / "src" / "A001XXXX" / "A001C001_XXXX_XXXX.mov.copy_in_progress" for dest in destinations}
     assert expected_tmps <= set(unlinked_paths)
