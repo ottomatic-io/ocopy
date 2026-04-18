@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 
 [[package]]
@@ -399,6 +399,7 @@ dependencies = [
     { name = "click" },
     { name = "defusedxml" },
     { name = "lxml" },
+    { name = "packaging" },
     { name = "requests" },
     { name = "xxhash" },
 ]
@@ -420,6 +421,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.1.7" },
     { name = "defusedxml", specifier = ">=0.6.0" },
     { name = "lxml", specifier = ">=4.4.1" },
+    { name = "packaging", specifier = ">=21.0" },
     { name = "requests", specifier = ">=2.22.0" },
     { name = "xxhash", specifier = ">=1.4.2" },
 ]

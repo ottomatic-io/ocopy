@@ -20,6 +20,7 @@ dependencies = [
     "lxml>=4.4.1",
     "xxhash>=1.4.2",
     "defusedxml>=0.6.0",
+    "packaging>=21.0",
     "requests>=2.22.0",
 ]
 
