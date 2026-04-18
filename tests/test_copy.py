@@ -1,4 +1,5 @@
 import os
+import threading
 from io import BytesIO
 from pathlib import Path
 from shutil import copystat
@@ -229,6 +230,72 @@ def test_copytree_alphabetical_order(tmp_path):
 
     rel = [fi.source.relative_to(src).as_posix() for fi in file_infos]
     assert rel == ["apple.txt", "folder/a.txt", "folder/b.txt", "middle.txt", "zebra.txt"]
+
+
+def test_copyjob_source_growth_during_run_issue_8(tmp_path):
+    """GH #8: CopyJob must finish even when files appear in the source mid-run.
+
+    Reproduction contract:
+    - One background writer spams new files into a *not-yet-visited* subdir
+      while a large first file is still being copied.
+    - A second background writer spams new files into the *root* of the source,
+      i.e. the directory that ``copytree`` is actively iterating.
+    - Both writers keep going until the job reports ``finished`` (no fixed budget),
+      so the test is immune to fast hardware making the race evaporate.
+
+    Assertions prove the race actually happened (at least some files were added
+    after the job started), not just that ``CopyJob`` returned quickly.
+    """
+    src = tmp_path / "src"
+    dst = tmp_path / "dst"
+    src.mkdir()
+    dst.mkdir()
+    (src / "a_big.bin").write_bytes(b"x" * (32 * 1024 * 1024))
+    late = src / "z_sub"
+    late.mkdir()
+    (late / "seed.txt").write_text("seed")
+
+    stop = threading.Event()
+    added_after_start = {"sub": 0, "root": 0}
+    job_started = threading.Event()
+
+    def spam_sub() -> None:
+        i = 0
+        while not stop.is_set():
+            (late / f"sub_{i}.txt").write_text("x")
+            i += 1
+            if job_started.is_set():
+                added_after_start["sub"] += 1
+
+    def spam_root() -> None:
+        i = 0
+        while not stop.is_set():
+            # Prefix 'zz_' so these always sort after 'z_sub' and cannot be missed
+            # for trivial "scanned first" reasons.
+            (src / f"zz_root_{i}.txt").write_text("x")
+            i += 1
+            if job_started.is_set():
+                added_after_start["root"] += 1
+
+    writers = [threading.Thread(target=spam_sub), threading.Thread(target=spam_root)]
+    for w in writers:
+        w.start()
+    try:
+        job = CopyJob(src, [dst], mhl=False, verify=True)
+        job_started.set()
+        job.join(timeout=120)
+        assert job.finished, "CopyJob did not finish within 120s (possible hang — GH #8)"
+        assert not job.errors, f"CopyJob reported errors: {[e.error_message for e in job.errors]}"
+        assert (dst / "src" / "z_sub" / "seed.txt").is_file()
+        # The race must have actually happened in at least one spammer; otherwise
+        # this test is not exercising issue #8 and should fail loudly.
+        assert added_after_start["sub"] + added_after_start["root"] > 0, (
+            "no files were added after the job started; test did not exercise the race"
+        )
+    finally:
+        stop.set()
+        for w in writers:
+            w.join(timeout=2)
 
 
 def test_copytree(card):
