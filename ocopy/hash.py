@@ -97,17 +97,25 @@ def _xxh64_latest_from_ascmhl(content_root: Path, file_path: Path) -> str | None
         return None
 
     try:
-        rel = file_path.resolve().relative_to(content_root.resolve()).as_posix()
+        rel = file_path.resolve().relative_to(content_root.resolve())
     except ValueError:
         return None
 
+    # ``media_hashes_path_map`` keys are produced via ``convert_posix_to_local_path``
+    # in the ASC MHL XML parser, which calls ``PureWindowsPath`` on Windows - so the
+    # stored key has backslash separators there. Using ``str(rel)`` gives the native
+    # separator on each OS and matches the library's convention; ``.as_posix()``
+    # would miss on Windows. We try the POSIX form as a fallback for histories that
+    # were written on a POSIX host and then consulted on Windows (same filesystem,
+    # cross-platform read).
     for hash_list in reversed(history.hash_lists):
-        media_hash = hash_list.find_media_hash_for_path(rel)
-        if media_hash is None or media_hash.is_directory:
-            continue
-        entry = media_hash.find_hash_entry_for_format("xxh64")
-        if entry is not None and entry.hash_string:
-            return entry.hash_string
+        for form in (str(rel), rel.as_posix()):
+            media_hash = hash_list.find_media_hash_for_path(form)
+            if media_hash is None or media_hash.is_directory:
+                continue
+            entry = media_hash.find_hash_entry_for_format("xxh64")
+            if entry is not None and entry.hash_string:
+                return entry.hash_string
     return None
 
 

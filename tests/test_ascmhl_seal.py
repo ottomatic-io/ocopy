@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+import re
 from pathlib import Path
 
 import pytest
@@ -156,7 +157,9 @@ def test_seal_error_includes_failing_destination(tmp_path):
     seal_ascmhl_destinations([good, bad], src, infos)
 
     tampered = [replace(fi, file_hash="0" * 16) for fi in infos]
-    with pytest.raises(ASCMHLSealError, match=str(good)) as excinfo:
+    # ``re.escape`` because Windows paths contain backslashes that look like regex
+    # escapes (``C:\Users\...`` -> incomplete-escape error in ``re.compile``).
+    with pytest.raises(ASCMHLSealError, match=re.escape(str(good))) as excinfo:
         seal_ascmhl_destinations([good, bad], src, tampered)
 
     # ``good`` is processed first, so it must be the destination surfaced in the error.
