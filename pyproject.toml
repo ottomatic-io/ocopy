@@ -22,6 +22,7 @@ dependencies = [
     "defusedxml>=0.6.0",
     "packaging>=21.0",
     "requests>=2.22.0",
+    "wakepy>=1.0",
 ]
 
 [project.scripts]

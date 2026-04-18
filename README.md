@@ -53,6 +53,8 @@ uv run ty check
 ### CLI
 ![cli](images/recording.svg)
 
+During a run, the CLI asks the OS not to enter automatic idle sleep (using [wakepy](https://pypi.org/project/wakepy/)). That is best-effort: in headless or minimal sessions inhibit may be unavailable, in which case o/COPY prints a short warning and continues copying. The `CopyJob` API does not change power settings unless you wrap it yourself (see below).
+
 ### Python
 
 ```python
@@ -60,6 +62,7 @@ import tempfile
 from pathlib import Path
 from time import sleep
 
+from ocopy.sleep_inhibit import sleep_inhibit_best_effort
 from ocopy.verified_copy import CopyJob
 
 
@@ -77,10 +80,12 @@ def simple_example():
         source.mkdir(parents=True, exist_ok=True)
         (source / "testfile").write_text("Some test content")
 
-        # Create the copy job and wait until it is finished
-        job = CopyJob(source, destinations, overwrite=True, verify=True)
-        while job.finished is not True:
-            sleep(0.1)
+        # Create the copy job and wait until it is finished (optional sleep inhibit;
+        # wrap construction too because ``CopyJob`` auto-starts background work)
+        with sleep_inhibit_best_effort():
+            job = CopyJob(source, destinations, overwrite=True, verify=True)
+            while job.finished is not True:
+                sleep(0.1)
 
         # Print errors
         for error in job.errors:
