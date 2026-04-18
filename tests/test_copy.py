@@ -212,6 +212,25 @@ def test_verified_copy_verification_error(tmp_path, mocker):
     assert unlink_mock.call_count == 3
 
 
+def test_copytree_alphabetical_order(tmp_path):
+    """Regression for GH #31: traversal order must be deterministic (sorted by name)."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "zebra.txt").write_text("z")
+    (src / "apple.txt").write_text("a")
+    folder = src / "folder"
+    folder.mkdir()
+    (folder / "b.txt").write_text("b")
+    (folder / "a.txt").write_text("a")
+    (src / "middle.txt").write_text("m")
+
+    dst = tmp_path / "dst" / "src"
+    file_infos = copytree(src, [dst])
+
+    rel = [fi.source.relative_to(src).as_posix() for fi in file_infos]
+    assert rel == ["apple.txt", "folder/a.txt", "folder/b.txt", "middle.txt", "zebra.txt"]
+
+
 def test_copytree(card):
     src_dir, destinations = card
 

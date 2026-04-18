@@ -147,6 +147,9 @@ def copytree(
 ) -> list[FileInfo]:
     """Recursively copy ``source`` to each of ``destinations``.
 
+    Children of each directory are visited in lexicographic order by basename
+    (depth-first), so copy order does not depend on filesystem iteration order.
+
     ``state`` is an internal plumbing parameter; direct callers (tests, library use)
     may omit it and receive default "no cancellation, no checkpoints" behavior.
     """
@@ -159,7 +162,7 @@ def copytree(
     file_infos: list[FileInfo] = []
     errors: list[ErrorListEntry] = []
 
-    for src_path in source.glob("*"):
+    for src_path in sorted(source.glob("*"), key=lambda p: p.name):
         if state.cancel_token():
             break
 
