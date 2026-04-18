@@ -14,10 +14,11 @@ from time import sleep
 
 import xxhash
 
+from ocopy.ascmhl_seal import ASCMHLSealError, seal_ascmhl_destinations
 from ocopy.file_info import FileInfo
-from ocopy.hash import find_hash, multi_xxhash_check, write_xxhash_summary
+from ocopy.hash import find_hash, multi_xxhash_check
 from ocopy.ignored import ignored_paths
-from ocopy.mhl import find_mhl, get_hash_from_mhl, write_mhl
+from ocopy.mhl import write_mhl
 from ocopy.progress import get_progress_queue
 from ocopy.utils import folder_size, threaded
 
@@ -187,25 +188,33 @@ def verified_copy(src_file: Path, destinations: list[Path], overwrite=False, ver
                 with contextlib.suppress(FileNotFoundError):
                     tmp.unlink()
     else:
-        mhl_file = find_mhl(destinations[0])
-        if mhl_file is None:
-            return ""
-        try:
-            hash_sum = get_hash_from_mhl(mhl_file.read_text(), destinations[0].relative_to(mhl_file.parent))
-            return hash_sum or ""
-        except AttributeError:
-            return ""
+        # All destinations were skipped; surface whichever hash the destination already advertises.
+        # ``find_hash`` walks ASC MHL first (innermost-P), then legacy ``.mhl``, then dot-xxhash sidecars.
+        return find_hash(destinations[0]) or ""
 
 
-def copy_and_seal(source: Path, destinations: list[Path], overwrite=False, verify=True, skip_existing=False, mhl=True):
+def copy_and_seal(
+    source: Path,
+    destinations: list[Path],
+    overwrite=False,
+    verify=True,
+    skip_existing=False,
+    mhl=True,
+    legacy_mhl=False,
+):
     destinations = [d / source.name for d in destinations]
 
-    start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     file_infos = copytree(source, destinations, overwrite=overwrite, verify=verify, skip_existing=skip_existing)
 
     if mhl:
-        write_mhl(destinations, file_infos, source, start)
-    write_xxhash_summary(destinations, file_infos)
+        if legacy_mhl:
+            start = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
+            write_mhl(destinations, file_infos, source, start)
+        else:
+            try:
+                seal_ascmhl_destinations(destinations, source, file_infos)
+            except ASCMHLSealError as err:
+                raise CopyTreeError([ErrorListEntry(source, destinations, str(err))]) from err
 
 
 def _is_cancelled() -> bool:
@@ -226,6 +235,7 @@ class CopyJob(Thread):
         verify=True,
         skip_existing=False,
         mhl=True,
+        legacy_mhl=False,
         auto_start=True,
     ):
         super().__init__()
@@ -241,6 +251,7 @@ class CopyJob(Thread):
         self.verify = verify
         self.skip_existing = skip_existing
         self.mhl = mhl
+        self.legacy_mhl = legacy_mhl
 
         self.total_size = folder_size(source)
         self.todo_size = self.total_size * (2 if self.verify else 1)
@@ -297,6 +308,7 @@ class CopyJob(Thread):
                 verify=self.verify,
                 skip_existing=self.skip_existing,
                 mhl=self.mhl,
+                legacy_mhl=self.legacy_mhl,
             )
 
         except CopyTreeError as e:

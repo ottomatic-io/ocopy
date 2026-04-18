@@ -38,19 +38,30 @@ from ocopy.verified_copy import CopyJob
 )
 @click.option(
     "--mhl/--no-mhl",
-    help="Write an MHL (Media Hash List) file to each destination (defaults to --mhl)",
+    help=(
+        "Write ASC Media Hash List (``ascmhl/`` chain + generation manifests) to each destination (defaults to --mhl)"
+    ),
     default=True,
+)
+@click.option(
+    "--legacy-mhl",
+    is_flag=True,
+    default=False,
+    help="Write legacy flat MHL v1.1 ``*.mhl`` files instead of ASC MHL ``ascmhl/`` (implies --mhl)",
 )
 @click.argument("source", nargs=1, type=click.Path(exists=True, readable=True, file_okay=False, dir_okay=True))
 @click.argument(
     "destinations", nargs=-1, type=click.Path(exists=True, readable=True, writable=True, file_okay=False, dir_okay=True)
 )
+@click.pass_context
 def cli(
+    ctx: click.Context,
     overwrite: bool,
     verify: bool,
     skip_existing: bool,
     machine_readable: bool,
     mhl: bool,
+    legacy_mhl: bool,
     source: str,
     destinations: list[str],
 ):
@@ -59,6 +70,13 @@ def cli(
 
     Copy SOURCE directory to DESTINATIONS
     """
+    # ``--legacy-mhl`` selects the manifest flavor and implies manifest writing. The only
+    # contradictory combination is an explicit ``--no-mhl`` together with ``--legacy-mhl``.
+    if legacy_mhl:
+        if not mhl and ctx.get_parameter_source("mhl") == click.core.ParameterSource.COMMANDLINE:
+            raise click.UsageError("--legacy-mhl cannot be combined with --no-mhl")
+        mhl = True
+
     updater = Updater()
 
     size = folder_size(source)
@@ -77,7 +95,13 @@ def cli(
         click.secho("Destinations should all be on different drives.", fg="yellow")
 
     job = CopyJob(
-        Path(source), destination_paths, overwrite=overwrite, verify=verify, skip_existing=skip_existing, mhl=mhl
+        Path(source),
+        destination_paths,
+        overwrite=overwrite,
+        verify=verify,
+        skip_existing=skip_existing,
+        mhl=mhl,
+        legacy_mhl=legacy_mhl,
     )
 
     if machine_readable:

@@ -28,9 +28,9 @@ def simple_example():
         for error in job.errors:
             print(f"Failed to copy {error.source.name}:\n{error.error_message}")
 
-        # Show content of the mhl file
-        mhl_file_content = next(destinations[0].glob("**/*.mhl")).read_text()
-        print(mhl_file_content)
+        # Show the start of the latest ASC MHL generation manifest
+        gen = next((destinations[0] / source.name / "ascmhl").glob("*.mhl"))
+        print(gen.read_text()[:800])
 
 
 if __name__ == "__main__":

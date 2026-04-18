@@ -66,8 +66,37 @@ def test_skip(tmp_path, card):
     assert "Skipped" in result.output
 
     for dst in destinations:
-        assert len(list(dst.glob("**/*.mhl"))) == 1
-        assert len(list(dst.glob("**/*.txt"))) == 1
+        root = dst / src_dir.name
+        assert (root / "ascmhl" / "ascmhl_chain.xml").is_file()
+        assert len(list((root / "ascmhl").glob("*.mhl"))) == 1
+        assert not any(p.name == "xxHash.txt" for p in dst.rglob("*"))
+
+
+def test_legacy_mhl(card):
+    src_dir, destinations = card
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["--legacy-mhl", src_dir.as_posix(), *[d.as_posix() for d in destinations]])
+    assert result.exit_code == 0
+
+    for dst in destinations:
+        root = dst / src_dir.name
+        assert not (root / "ascmhl").exists()
+        flat = list(root.glob("*.mhl"))
+        assert len(flat) == 1
+
+
+def test_legacy_mhl_conflicts_with_no_mhl(card):
+    """``--no-mhl --legacy-mhl`` is contradictory and must error out before any copy runs."""
+    src_dir, destinations = card
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["--no-mhl", "--legacy-mhl", src_dir.as_posix(), *[d.as_posix() for d in destinations]])
+    assert result.exit_code != 0
+    assert "--legacy-mhl cannot be combined with --no-mhl" in result.output
+    for dst in destinations:
+        assert list(dst.glob("**/*.mhl")) == []
+        assert not (dst / src_dir.name / "ascmhl").exists()
 
 
 def test_no_mhl(card):
@@ -78,8 +107,8 @@ def test_no_mhl(card):
     assert result.exit_code == 0
 
     for dst in destinations:
-        assert list(dst.glob("**/*.mhl")) == []
-        assert len(list(dst.glob("**/xxHash.txt"))) == 1
+        assert list(dst.glob("**/ascmhl/**/*.mhl")) == []
+        assert list(dst.glob("**/xxHash.txt")) == []
 
 
 def test_not_enough_space(card, mocker):

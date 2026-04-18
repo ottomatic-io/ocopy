@@ -13,13 +13,13 @@ from ocopy.utils import get_user_display_name
 
 
 def file_info2mhl_hash(file_info: FileInfo, source: Path):
-    now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0, tzinfo=None).isoformat() + "Z"
+    now = datetime.datetime.now(datetime.UTC).replace(microsecond=0, tzinfo=None).isoformat() + "Z"
     new_hash = E.hash(
         # FIXME: use path relative to destination instead of source
         E.file(file_info.source.relative_to(source).as_posix()),
         E.size(str(file_info.size)),
         E.lastmodificationdate(
-            datetime.datetime.fromtimestamp(file_info.mtime, datetime.timezone.utc)
+            datetime.datetime.fromtimestamp(file_info.mtime, datetime.UTC)
             .replace(microsecond=0, tzinfo=None)
             .isoformat()
             + "Z"
@@ -32,7 +32,7 @@ def file_info2mhl_hash(file_info: FileInfo, source: Path):
 
 def create_mhl(start: datetime.datetime):
     start_str = start.replace(microsecond=0).isoformat() + "Z"
-    finish = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0, tzinfo=None).isoformat() + "Z"
+    finish = datetime.datetime.now(datetime.UTC).replace(microsecond=0, tzinfo=None).isoformat() + "Z"
     new_mhl = E.hashlist(
         E.creatorinfo(
             E.name(get_user_display_name()),
@@ -49,7 +49,7 @@ def create_mhl(start: datetime.datetime):
 
 def write_mhl_to_destinations(new_mhl, destinations: list[Path]):
     for d in destinations:
-        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H%M%S")
+        timestamp = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d_%H%M%S")
         mhl_name = f"{os.path.basename(os.path.abspath(d))}_{timestamp}.mhl"
 
         with open(d / mhl_name, "wb") as x:

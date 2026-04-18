@@ -6,7 +6,7 @@ from time import sleep
 
 import pytest
 
-from ocopy.hash import get_hash
+from ocopy.hash import find_hash, get_hash
 from ocopy.utils import folder_size
 from ocopy.verified_copy import (
     CopyJob,
@@ -259,7 +259,7 @@ def test_copytree(card):
 
 
 def test_copy_and_seal(card):
-    from defusedxml import ElementTree
+    from tests.ascmhl_validation import run_ascmhl_debug_verify, validate_ascmhl_xsd
 
     src_dir, destinations = card
 
@@ -269,24 +269,18 @@ def test_copy_and_seal(card):
     copy_and_seal(src_dir, destinations)
 
     for dest in destinations:
-        mhl_files = list((dest / "src").glob("*.mhl"))
-        assert len(mhl_files) == 1
-        assert len((dest / "src" / "xxHash.txt").read_text().splitlines()) == 9
+        root = dest / "src"
+        assert not (root / "xxHash.txt").exists()
+        assert (root / "ascmhl" / "ascmhl_chain.xml").is_file()
+        assert len(list((root / "ascmhl").glob("*.mhl"))) == 1
+        validate_ascmhl_xsd(root)
+        run_ascmhl_debug_verify(root)
+
         assert ".DS_Store" not in [e.name for e in dest.glob("**/*")]
         assert ".some_hidden_file" in [e.name for e in dest.glob("**/*")]
 
-        # Child element order inside <hash> must match the MHL v1.1 XSD
-        root = ElementTree.fromstring(mhl_files[0].read_bytes())
-        hash_elements = root.findall("hash")
-        assert hash_elements
-        for hash_element in hash_elements:
-            assert [child.tag for child in hash_element] == [
-                "file",
-                "size",
-                "lastmodificationdate",
-                "xxhash64be",
-                "hashdate",
-            ]
+        mov = next(root.glob("**/*.mov"))
+        assert find_hash(mov) == get_hash(mov)
 
 
 def test_copy_and_seal_no_mhl(card):
@@ -296,7 +290,8 @@ def test_copy_and_seal_no_mhl(card):
 
     for dest in destinations:
         assert list((dest / "src").glob("*.mhl")) == []
-        assert (dest / "src" / "xxHash.txt").exists()
+        assert not (dest / "src" / "ascmhl").exists()
+        assert not (dest / "src" / "xxHash.txt").exists()
 
 
 def test_copy_job(card):
@@ -308,8 +303,10 @@ def test_copy_job(card):
         sleep(0.1)
 
     for dest in destinations:
-        assert len(list((dest / "src").glob("*.mhl"))) == 1
-        assert len((dest / "src" / "xxHash.txt").read_text().splitlines()) == 8
+        root = dest / "src"
+        assert not (root / "xxHash.txt").exists()
+        assert (root / "ascmhl" / "ascmhl_chain.xml").is_file()
+        assert len(list((root / "ascmhl").glob("*.mhl"))) == 1
 
 
 def test_copy_job_cancel(card):
@@ -321,9 +318,13 @@ def test_copy_job_cancel(card):
     while job.finished is not True:
         sleep(0.1)
 
-    # Only hash files should be present
+    # Copy was cancelled before any media; ASC MHL chain + one generation manifest only
     for dest in destinations:
-        assert len(list((dest / "src").glob("**/*"))) == 2
+        root = dest / "src"
+        assert not (root / "xxHash.txt").exists()
+        assert (root / "ascmhl" / "ascmhl_chain.xml").is_file()
+        assert len(list((root / "ascmhl").glob("*.mhl"))) == 1
+        assert sum(1 for p in root.rglob("*") if p.is_file()) == 2
 
 
 def test_copy_job_cancel_before_start(card):

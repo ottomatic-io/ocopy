@@ -7,11 +7,15 @@
 [![codecov](https://codecov.io/gh/OTTOMATIC-IO/ocopy/branch/master/graph/badge.svg)](https://codecov.io/gh/OTTOMATIC-IO/ocopy)
 
 A multi destination copy tool / library with source and destination verification using xxHash.
+By default each completed copy is sealed with **ASC Media Hash List** (an ``ascmhl/`` directory with
+``ascmhl_chain.xml`` and generation manifests). Digests are taken from the copy-time xxh64 stream, so sealing does not
+re-read file bodies. Use ``--legacy-mhl`` on the CLI (or ``legacy_mhl=True`` on ``CopyJob``) for the older flat MHL
+v1.1 ``*.mhl`` output instead of ASC MHL.
 
 ## Installation / Update
 
 ### With pip
-If you have Python 3.10 or newer installed you can just use `pip`:
+If you have Python 3.11 or newer installed you can just use `pip`:
 ```
 pip3 install -U ocopy
 ```
@@ -73,9 +77,9 @@ def simple_example():
         for error in job.errors:
             print(f"Failed to copy {error.source.name}:\n{error.error_message}")
 
-        # Show content of the mhl file
-        mhl_file_content = list(destinations[0].glob("**/*.mhl"))[0].read_text()
-        print(mhl_file_content)
+        # Show the start of the latest ASC MHL generation manifest
+        gen = next((destinations[0] / source.name / "ascmhl").glob("*.mhl"))
+        print(gen.read_text()[:800])
 
 
 if __name__ == "__main__":
