@@ -82,6 +82,21 @@ def _detach_best_effort(mountpoint: Path) -> None:
     )
 
 
+def _wait_for_copy_in_progress_under(dest_subtree: Path, *, timeout: float) -> None:
+    """Block until ocopy creates a ``*.copy_in_progress`` file or ``timeout`` elapses."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if dest_subtree.is_dir():
+            for p in dest_subtree.rglob("*"):
+                if p.is_file() and p.name.endswith(".copy_in_progress"):
+                    return
+        time.sleep(0.05)
+    pytest.fail(
+        f"Timed out after {timeout}s waiting for a .copy_in_progress file under {dest_subtree}; "
+        "cannot exercise mid-transfer detach (runner too fast or copy never reached the volume)."
+    )
+
+
 @pytest.mark.skipif(sys.platform != "darwin", reason="hdiutil-based probe is macOS-only")
 def test_real_detach_mid_copy_is_reported_no_silent_writes(tmp_path):
     """Empirical probe of issue #15 using the realistic macOS mount lifecycle.
@@ -105,8 +120,11 @@ def test_real_detach_mid_copy_is_reported_no_silent_writes(tmp_path):
     local_dev = tmp_path.stat().st_dev
     volumes_dir_mode = oct(Path("/Volumes").stat().st_mode & 0o7777)
 
+    job: CopyJob | None = None
+    image_dev: int | None = None
+
     try:
-        _hdiutil("create", "-size", "200m", "-fs", "HFS+", "-volname", volname, str(dmg))
+        _hdiutil("create", "-size", "512m", "-fs", "HFS+", "-volname", volname, str(dmg))
         _hdiutil("attach", str(dmg), "-nobrowse", "-noautoopen")
     except (FileNotFoundError, subprocess.CalledProcessError) as err:
         # Some CI environments (sandboxed macOS runners, restricted containers) deny
@@ -128,7 +146,9 @@ def test_real_detach_mid_copy_is_reported_no_silent_writes(tmp_path):
             card_dir = src / f"card_{card}"
             card_dir.mkdir()
             for i in range(12):
-                (card_dir / f"clip_{i:03d}.mov").write_bytes(os.urandom(200_000))
+                # Large enough that verify+dual-destination work does not finish before we
+                # observe a .copy_in_progress on the volume (fast CI runners).
+                (card_dir / f"clip_{i:03d}.mov").write_bytes(os.urandom(1_500_000))
 
         dst_ok = tmp_path / "dst_ok"
         dst_ok.mkdir()
@@ -136,9 +156,9 @@ def test_real_detach_mid_copy_is_reported_no_silent_writes(tmp_path):
         job = CopyJob(src, [dst_ok, mountpoint], verify=True, mhl=False, auto_start=False)
         job.start()
 
-        # Give the job long enough to get into at least the first card so the
-        # detach actually happens mid-traversal (not before it starts).
-        time.sleep(0.35)
+        # Detach only after we see real write activity on the volume; a fixed sleep
+        # races fast runners where the whole job can finish before detach.
+        _wait_for_copy_in_progress_under(mountpoint / src.name, timeout=120.0)
         _detach_best_effort(mountpoint)
 
         job.join(timeout=180)
@@ -149,6 +169,7 @@ def test_real_detach_mid_copy_is_reported_no_silent_writes(tmp_path):
         if mountpoint.exists():
             shutil.rmtree(mountpoint, ignore_errors=True)
 
+    assert job is not None and image_dev is not None, "test setup did not reach CopyJob"
     assert job.finished, "CopyJob did not finish within timeout after detach"
 
     mountpoint_after = mountpoint.exists()
@@ -161,9 +182,7 @@ def test_real_detach_mid_copy_is_reported_no_silent_writes(tmp_path):
         except OSError:
             pass
 
-    silent_finals_on_local_fs = [
-        p for p in files_on_local_at_mountpath if ".copy_in_progress" not in p.name
-    ]
+    silent_finals_on_local_fs = [p for p in files_on_local_at_mountpath if ".copy_in_progress" not in p.name]
 
     report_lines = [
         "",
@@ -184,8 +203,7 @@ def test_real_detach_mid_copy_is_reported_no_silent_writes(tmp_path):
         pytest.fail(
             f"Issue #15 reproduced empirically: {len(silent_finals_on_local_fs)} file(s) landed on "
             f"the LOCAL FS at the mountpoint path after detach, while CopyJob reported "
-            f"{len(job.errors)} error(s)."
-            + report
+            f"{len(job.errors)} error(s)." + report
         )
 
     # Positive regression guard: if no silent writes occurred, the detach must still
@@ -194,6 +212,5 @@ def test_real_detach_mid_copy_is_reported_no_silent_writes(tmp_path):
     # the exact "no error, had to abort" regression that issue #15 is about.
     assert job.errors, (
         "Force-detach mid-copy produced no silent writes AND no CopyJob.errors; "
-        "the failure went completely undetected."
-        + report
+        "the failure went completely undetected." + report
     )
