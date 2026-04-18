@@ -43,8 +43,6 @@ During a long run the CLI tries to keep the system from going to idle sleep; tha
 
 ### Python
 
-`CopyJob` does not change power or sleep settings (only the CLI does that).
-
 ```python
 import tempfile
 from pathlib import Path
