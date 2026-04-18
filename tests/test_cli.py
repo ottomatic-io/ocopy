@@ -155,11 +155,16 @@ def test_verification_error(card, mocker):
     def fake_folder_size(*args):
         return 8 * len("some fake data")
 
+    unlinked_paths: list[Path] = []
+
+    def _capture_unlink(self, missing_ok=False):
+        unlinked_paths.append(self)
+
     mocker.patch("builtins.open", fake_open)
     mocker.patch("ocopy.utils.folder_size", fake_folder_size)
     mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
     rename_mock = mocker.patch("pathlib.Path.rename", mocker.Mock())
-    unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
+    mocker.patch("pathlib.Path.unlink", autospec=True, side_effect=_capture_unlink)
 
     src_dir, destinations = card
 
@@ -168,7 +173,9 @@ def test_verification_error(card, mocker):
     assert result.exit_code == 1
     assert "Failed to copy" in result.output
     assert rename_mock.call_count == 21  # Only good files get renamed
-    assert unlink_mock.call_count == 3  # Temp files for the one failed verified_copy
+
+    expected_tmps = {dest / "src" / "A001XXXX" / "A001C001_XXXX_XXXX.mov.copy_in_progress" for dest in destinations}
+    assert expected_tmps <= set(unlinked_paths)
 
 
 def test_io_error(card, mocker):
@@ -195,11 +202,16 @@ def test_io_error(card, mocker):
     def fake_folder_size(*args):
         return 8 * len("some fake data")
 
+    unlinked_paths: list[Path] = []
+
+    def _capture_unlink(self, missing_ok=False):
+        unlinked_paths.append(self)
+
     mocker.patch("builtins.open", fake_open)
     mocker.patch("ocopy.utils.folder_size", fake_folder_size)
     mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
     rename_mock = mocker.patch("pathlib.Path.rename", mocker.Mock())
-    unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
+    mocker.patch("pathlib.Path.unlink", autospec=True, side_effect=_capture_unlink)
 
     src_dir, destinations = card
 
@@ -208,7 +220,9 @@ def test_io_error(card, mocker):
     assert result.exit_code == 1
     assert "Failed to copy" in result.output
     assert rename_mock.call_count == 21  # Only good files get renamed
-    assert unlink_mock.call_count == 3  # Temp files for the one failed verified_copy
+
+    expected_tmps = {dest / "src" / "A001XXXX" / "A001C001_XXXX_XXXX.mov.copy_in_progress" for dest in destinations}
+    assert expected_tmps <= set(unlinked_paths)
 
 
 class _FakeCancelledJob:

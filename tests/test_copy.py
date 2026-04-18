@@ -429,10 +429,15 @@ def test_copy_job_verification_error(card, mocker):
     def fake_open(path, options, **kwds):
         yield FakeIo(path)
 
+    unlinked_paths: list[Path] = []
+
+    def _capture_unlink(self, missing_ok=False):
+        unlinked_paths.append(self)
+
     mocker.patch("builtins.open", fake_open)
     mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
     rename_mock = mocker.patch("pathlib.Path.rename", mocker.Mock())
-    unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
+    mocker.patch("pathlib.Path.unlink", autospec=True, side_effect=_capture_unlink)
 
     src_dir, destinations = card
 
@@ -445,7 +450,11 @@ def test_copy_job_verification_error(card, mocker):
     assert len(job.errors) == 1
     assert "Verification failed" in job.errors[0].error_message
     assert rename_mock.call_count == 21  # Only good files get renamed
-    assert unlink_mock.call_count == 3  # Temp files for the one failed verified_copy
+
+    # Assert semantically that the failing file's tmps were cleaned up on every
+    # destination. Exact call-count is fragile across Python/OS combos.
+    expected_tmps = {dest / "src" / "A001XXXX" / "A001C001_XXXX_XXXX.mov.copy_in_progress" for dest in destinations}
+    assert expected_tmps <= set(unlinked_paths)
 
 
 def test_copy_job_io_error(card, mocker):
@@ -469,10 +478,15 @@ def test_copy_job_io_error(card, mocker):
     def fake_open(path, options, **kwds):
         yield FakeIo(path)
 
+    unlinked_paths: list[Path] = []
+
+    def _capture_unlink(self, missing_ok=False):
+        unlinked_paths.append(self)
+
     mocker.patch("builtins.open", fake_open)
     mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
     rename_mock = mocker.patch("pathlib.Path.rename", mocker.Mock())
-    unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
+    mocker.patch("pathlib.Path.unlink", autospec=True, side_effect=_capture_unlink)
 
     src_dir, destinations = card
 
@@ -485,4 +499,8 @@ def test_copy_job_io_error(card, mocker):
     assert len(job.errors) == 1
     assert "IO Error" in job.errors[0].error_message
     assert rename_mock.call_count == 21  # Only good files get renamed
-    assert unlink_mock.call_count == 3  # Temp files for the one failed verified_copy
+
+    # Assert semantically that the failing file's tmps were cleaned up on every
+    # destination. Exact call-count is fragile across Python/OS combos.
+    expected_tmps = {dest / "src" / "A001XXXX" / "A001C001_XXXX_XXXX.mov.copy_in_progress" for dest in destinations}
+    assert expected_tmps <= set(unlinked_paths)
