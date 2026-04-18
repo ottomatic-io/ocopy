@@ -6,20 +6,17 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![codecov](https://codecov.io/gh/OTTOMATIC-IO/ocopy/branch/master/graph/badge.svg)](https://codecov.io/gh/OTTOMATIC-IO/ocopy)
 
-A multi destination copy tool / library with source and destination verification using xxHash.
-By default each completed copy is sealed with **ASC Media Hash List** (an ``ascmhl/`` directory with
-``ascmhl_chain.xml`` and generation manifests). Digests are taken from the copy-time xxh64 stream, so sealing does not
-re-read file bodies. Use ``--legacy-mhl`` on the CLI (or ``legacy_mhl=True`` on ``CopyJob``) for the older flat MHL
-v1.1 ``*.mhl`` output instead of ASC MHL.
+**o/COPY** copies a directory tree to one or more destinations at once.
 
-**Re-runs, integrity, and cancellation:** With ``--skip-existing`` (the default), o/COPY only fast-skips a file when
-size and mtime match the source *and* a trusted xxh64 is already known (ASC MHL, a per-run ``.ocopy-checkpoint``
-sidecar, legacy ``.mhl``, or a dot-xxhash sidecar). Otherwise it re-reads source and destinations so manifests never
-contain empty digests. Wrong destination bytes raise a verification error unless ``--overwrite`` is set (source wins).
-The checkpoint file is written on each destination during a run and deleted after a successful seal; interrupted jobs
-can resume cheaply on the next invocation. If you explicitly use ``--no-mhl`` and ``--dont-verify``, metadata match alone
-is the contract. A cancelled run does **not** write a manifest; the CLI exits with code ``3`` and points at the
-checkpoint path—re-run o/COPY to finish and seal.
+- **Hashing.** Each file gets an **xxh64** checksum during the copy (the value recorded in MHL output). **Verification** is on by default: o/COPY re-reads the source and destinations and confirms all xxh64 values match. Disable that with `--dont-verify` or `verify=False`.
+
+- **ASC MHL (default on).** Each destination gets an [**ASC Media Hash List (ASC MHL)**](https://github.com/ascmitc/mhl-specification) history: the **`ascmhl` folder**, **chain file**, and XML **generation** manifests that document checksums together with file metadata, following the layout defined in the spec and read/written by the [`mhllib` / `ascmhl` reference implementation](https://github.com/ascmitc/mhl). o/COPY supplies the xxh64 from the copy step so sealing does not hash file contents again. For flat **`*.mhl`** files in the [original **Media Hash List** format](https://mediahashlist.org) instead, use `--legacy-mhl` or `legacy_mhl=True`. `--no-mhl` / `mhl=False` skips writing MHL output.
+
+- **Skip-existing (default on).** A destination file is fast-skipped only when its size and modification time match the source (within a small tolerance) *and* o/COPY already trusts an xxh64 for that path. Trusted digests are resolved in this order: `.ocopy-checkpoint`, an ASC MHL history in an **`ascmhl` folder**, a legacy flat `*.mhl`, then a `*.xxhash` sidecar. If metadata matches but no trusted hash exists while integrity is required, o/COPY re-reads and verifies so ASC MHL records are never written empty. A destination that exists but disagrees raises unless `--overwrite` / `overwrite=True`.
+
+- **Integrity off.** If both `--no-mhl` and `--dont-verify` are set (or `mhl=False` and `verify=False` in code), only size/mtime are used for skip-existing; hashes are not checked.
+
+- **Resume.** While a run is in progress, each destination tree keeps a `.ocopy-checkpoint` sidecar. When the run finishes without error, those files are removed (including when MHL output is disabled). If you interrupt the CLI, it exits with code `3`, leaves checkpoints in place, and does not append a new ASC MHL generation or other MHL output. Run `ocopy` again to continue and finish.
 
 ## Installation / Update
 
@@ -27,6 +24,65 @@ checkpoint path—re-run o/COPY to finish and seal.
 If you have Python 3.11 or newer installed you can just use `pip`:
 ```
 pip3 install -U ocopy
+```
+
+## Usage
+
+### CLI
+![cli](images/recording.svg)
+
+After install the command is `ocopy`. Pass a **source** directory and one or more **destination** directories (each path must already exist and be a writable folder):
+
+```
+ocopy /path/to/source /path/to/dest1 /path/to/dest2
+```
+
+Run `ocopy --help` for the full flag list. The introduction above describes skip-existing, verification, ASC MHL histories vs. legacy flat MHL, and checkpoints.
+
+During a long run the CLI tries to keep the system from going to idle sleep; that is best-effort and may not work in headless setups, and o/COPY will warn and continue copying.
+
+### Python
+
+`CopyJob` does not change power or sleep settings (only the CLI does that).
+
+```python
+import tempfile
+from pathlib import Path
+from time import sleep
+
+from ocopy.verified_copy import CopyJob
+
+
+def simple_example():
+    # For the sake of this example we will create temporary directory.
+    # You will not be doing this in your code.
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+
+        # Define source and destination directories
+        source = tmp / "source"
+        destinations = [tmp / "destination_1", tmp / "destination_2", tmp / "destination_3"]
+
+        # Create some test content
+        source.mkdir(parents=True, exist_ok=True)
+        (source / "testfile").write_text("Some test content")
+
+        # ``CopyJob`` starts work as soon as it is constructed.
+        job = CopyJob(source, destinations, overwrite=True, verify=True)
+        while job.finished is not True:
+            sleep(0.1)
+
+        # Print errors
+        for error in job.errors:
+            print(f"Failed to copy {error.source.name}:\n{error.error_message}")
+
+        # Show the start of the latest ASC MHL generation (XML hash list)
+        gen = next((destinations[0] / source.name / "ascmhl").glob("*.mhl"))
+        print(gen.read_text()[:800])
+
+
+if __name__ == "__main__":
+    simple_example()
 ```
 
 ## Development
@@ -46,56 +102,4 @@ uv run pytest
 uv run ruff check .
 uv run ruff format .
 uv run ty check
-```
-
-## Usage
-
-### CLI
-![cli](images/recording.svg)
-
-During a run, the CLI asks the OS not to enter automatic idle sleep (using [wakepy](https://pypi.org/project/wakepy/)). That is best-effort: in headless or minimal sessions inhibit may be unavailable, in which case o/COPY prints a short warning and continues copying. The `CopyJob` API does not change power settings unless you wrap it yourself (see below).
-
-### Python
-
-```python
-import tempfile
-from pathlib import Path
-from time import sleep
-
-from ocopy.sleep_inhibit import sleep_inhibit_best_effort
-from ocopy.verified_copy import CopyJob
-
-
-def simple_example():
-    # For the sake of this example we will create temporary directory.
-    # You will not be doing this in your code.
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp = Path(tmp)
-
-        # Define source and destination directories
-        source = tmp / "source"
-        destinations = [tmp / "destination_1", tmp / "destination_2", tmp / "destination_3"]
-
-        # Create some test content
-        source.mkdir(parents=True, exist_ok=True)
-        (source / "testfile").write_text("Some test content")
-
-        # Create the copy job and wait until it is finished (optional sleep inhibit;
-        # wrap construction too because ``CopyJob`` auto-starts background work)
-        with sleep_inhibit_best_effort():
-            job = CopyJob(source, destinations, overwrite=True, verify=True)
-            while job.finished is not True:
-                sleep(0.1)
-
-        # Print errors
-        for error in job.errors:
-            print(f"Failed to copy {error.source.name}:\n{error.error_message}")
-
-        # Show the start of the latest ASC MHL generation manifest
-        gen = next((destinations[0] / source.name / "ascmhl").glob("*.mhl"))
-        print(gen.read_text()[:800])
-
-
-if __name__ == "__main__":
-    simple_example()
 ```
