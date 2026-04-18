@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 import sys
 import time
 from pathlib import Path
@@ -9,6 +10,26 @@ from ocopy.backup_check import get_missing
 from ocopy.cli.update import Updater
 from ocopy.utils import folder_size, free_space, get_mount
 from ocopy.verified_copy import CopyJob
+
+
+def _report_cancelled(job: CopyJob, machine_readable: bool) -> None:
+    """Print the cancel summary (human or JSON) that the CLI exits on.
+
+    Reads ``job.checkpoint_paths`` rather than recomputing from CLI arguments so
+    multi-destination runs list every checkpoint and the source of truth stays
+    inside ``CopyJob``.
+    """
+    checkpoints = [str(p.resolve()) for p in job.checkpoint_paths]
+    verified = job.verified_files_count
+    if machine_readable:
+        click.echo(json.dumps({"status": "cancelled", "files_verified": verified, "checkpoints": checkpoints}))
+        return
+    click.secho(
+        f"\nCancelled. {verified} file(s) verified so far; re-run ocopy to resume.",
+        fg="yellow",
+    )
+    for cp in checkpoints:
+        click.secho(f"Checkpoint: {cp}", fg="yellow")
 
 
 @click.command()
@@ -115,6 +136,10 @@ def cli(
     while not job.finished:
         time.sleep(0.1)
         # TODO: break loop if this takes too long
+
+    if job.interrupted_by_cancel:
+        _report_cancelled(job, machine_readable)
+        sys.exit(3)
 
     # TODO: check all destinations in parallel
     for destination in destination_paths:

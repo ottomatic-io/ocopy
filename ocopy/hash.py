@@ -8,6 +8,7 @@ from ascmhl import errors as ascmhl_errors
 from ascmhl.__version__ import ascmhl_folder_name
 from ascmhl.history import MHLHistory
 
+from ocopy.checkpoint import Checkpoint
 from ocopy.dot_hash import find_dot_xxhash, get_hash_from_dot_xxhash
 from ocopy.mhl import find_mhl, get_hash_from_mhl
 from ocopy.progress import get_progress_queue
@@ -42,16 +43,26 @@ def multi_xxhash_check(filenames: list[Path]) -> str:
     return unique_file_hashes.pop() if len(unique_file_hashes) == 1 else "hashes_do_not_match"
 
 
-def _innermost_ascmhl_content_root(file_path: Path) -> Path | None:
-    """Deepest directory ``P`` such that ``P / ascmhl`` exists and ``file_path`` lies under ``P``."""
+def _innermost_root_with_marker(file_path: Path, marker: str, *, is_dir: bool) -> Path | None:
+    """Walk from ``file_path`` upwards and return the deepest ancestor containing ``marker``.
+
+    ``marker`` is checked against ``parent / marker`` with ``is_dir`` distinguishing
+    a directory marker (e.g. ``ascmhl``) from a file marker (e.g. ``.ocopy-checkpoint``).
+    Returns ``None`` when no ancestor qualifies or when ``file_path`` cannot be
+    resolved as relative to any candidate (e.g. symlink crossings).
+    """
     p = file_path.resolve()
-    dirs_to_check: list[Path] = []
+    candidates: list[Path] = []
     if p.is_dir():
-        dirs_to_check.append(p)
-    dirs_to_check.extend(p.parents)
+        candidates.append(p)
+    candidates.extend(p.parents)
     best: Path | None = None
-    for parent in dirs_to_check:
-        if not (parent / ascmhl_folder_name).is_dir():
+    for parent in candidates:
+        marker_path = parent / marker
+        if is_dir:
+            if not marker_path.is_dir():
+                continue
+        elif not marker_path.is_file():
             continue
         try:
             p.relative_to(parent)
@@ -60,6 +71,18 @@ def _innermost_ascmhl_content_root(file_path: Path) -> Path | None:
         if best is None or len(parent.parts) > len(best.parts):
             best = parent
     return best
+
+
+def _xxh64_from_checkpoint(content_root: Path, file_path: Path) -> str | None:
+    try:
+        rel = file_path.resolve().relative_to(content_root.resolve()).as_posix()
+    except ValueError:
+        return None
+    try:
+        st = file_path.stat()
+    except OSError:
+        return None
+    return Checkpoint(content_root).lookup(rel, st.st_size, st.st_mtime)
 
 
 def _xxh64_latest_from_ascmhl(content_root: Path, file_path: Path) -> str | None:
@@ -89,7 +112,13 @@ def _xxh64_latest_from_ascmhl(content_root: Path, file_path: Path) -> str | None
 
 
 def find_hash(file_path: Path) -> str | None:
-    asc_root = _innermost_ascmhl_content_root(file_path)
+    ck_root = _innermost_root_with_marker(file_path, Checkpoint.FILENAME, is_dir=False)
+    if ck_root is not None:
+        ck_hash = _xxh64_from_checkpoint(ck_root, file_path)
+        if ck_hash:
+            return ck_hash
+
+    asc_root = _innermost_root_with_marker(file_path, ascmhl_folder_name, is_dir=True)
     if asc_root is not None:
         asc_hash = _xxh64_latest_from_ascmhl(asc_root, file_path)
         if asc_hash:

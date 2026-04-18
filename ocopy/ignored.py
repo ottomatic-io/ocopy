@@ -1,6 +1,7 @@
 ignored_paths = frozenset(
     {
         ".DS_Store",
+        ".ocopy-checkpoint",
         ".DocumentRevisions-V100",
         ".Spotlight-V100",
         ".Spotlight",

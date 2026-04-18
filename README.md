@@ -12,6 +12,15 @@ By default each completed copy is sealed with **ASC Media Hash List** (an ``ascm
 re-read file bodies. Use ``--legacy-mhl`` on the CLI (or ``legacy_mhl=True`` on ``CopyJob``) for the older flat MHL
 v1.1 ``*.mhl`` output instead of ASC MHL.
 
+**Re-runs, integrity, and cancellation:** With ``--skip-existing`` (the default), o/COPY only fast-skips a file when
+size and mtime match the source *and* a trusted xxh64 is already known (ASC MHL, a per-run ``.ocopy-checkpoint``
+sidecar, legacy ``.mhl``, or a dot-xxhash sidecar). Otherwise it re-reads source and destinations so manifests never
+contain empty digests. Wrong destination bytes raise a verification error unless ``--overwrite`` is set (source wins).
+The checkpoint file is written on each destination during a run and deleted after a successful seal; interrupted jobs
+can resume cheaply on the next invocation. If you explicitly use ``--no-mhl`` and ``--dont-verify``, metadata match alone
+is the contract. A cancelled run does **not** write a manifest; the CLI exits with code ``3`` and points at the
+checkpoint path—re-run o/COPY to finish and seal.
+
 ## Installation / Update
 
 ### With pip

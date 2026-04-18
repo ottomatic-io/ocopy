@@ -1,3 +1,4 @@
+import re
 from io import BytesIO
 from pathlib import Path
 from shutil import copystat
@@ -68,7 +69,10 @@ def test_skip(tmp_path, card):
     for dst in destinations:
         root = dst / src_dir.name
         assert (root / "ascmhl" / "ascmhl_chain.xml").is_file()
+        gen = next((root / "ascmhl").glob("*.mhl"))
         assert len(list((root / "ascmhl").glob("*.mhl"))) == 1
+        text = gen.read_text(encoding="utf-8")
+        assert re.search(r"<xxh64[^>]*>\s*[0-9a-f]+\s*</xxh64>", text, re.IGNORECASE)
         assert not any(p.name == "xxHash.txt" for p in dst.rglob("*"))
 
 
@@ -164,7 +168,7 @@ def test_verification_error(card, mocker):
     assert result.exit_code == 1
     assert "Failed to copy" in result.output
     assert rename_mock.call_count == 21  # Only good files get renamed
-    assert unlink_mock.call_count == 24  # Unlink is tried for all temporary files
+    assert unlink_mock.call_count == 3  # Temp files for the one failed verified_copy
 
 
 def test_io_error(card, mocker):
@@ -204,7 +208,106 @@ def test_io_error(card, mocker):
     assert result.exit_code == 1
     assert "Failed to copy" in result.output
     assert rename_mock.call_count == 21  # Only good files get renamed
-    assert unlink_mock.call_count == 24  # Unlink is tried for all temporary files
+    assert unlink_mock.call_count == 3  # Temp files for the one failed verified_copy
+
+
+class _FakeCancelledJob:
+    """Fast unit-test double for the CLI-side cancel reporting path."""
+
+    daemon = True
+
+    def __init__(self, source, destinations, *args, **kwargs):
+        from ocopy.checkpoint import Checkpoint
+
+        self.finished = True
+        self.interrupted_by_cancel = True
+        self.verified_files_count = 3
+        self.skipped_files = 0
+        self.errors = []
+        self.speed = 1.0
+        self.current_item = None
+        self._pct = 0
+        self.checkpoint_paths = [Path(d) / Path(source).name / Checkpoint.FILENAME for d in destinations]
+
+    def start(self):
+        return None
+
+    def join(self, timeout=None):
+        return None
+
+    @property
+    def percent_done(self) -> int:
+        return min(100, self._pct)
+
+    @property
+    def progress(self):
+        for _ in range(100):
+            self._pct += 1
+            yield self.current_item
+
+
+def test_cancel_human(tmp_path, mocker):
+    src = tmp_path / "src"
+    src.mkdir()
+    dst = tmp_path / "dst"
+    dst.mkdir()
+    mocker.patch("ocopy.cli.ocopy.CopyJob", _FakeCancelledJob)
+    runner = CliRunner()
+    result = runner.invoke(cli, [src.as_posix(), dst.as_posix()])
+    assert result.exit_code == 3
+    assert "Cancelled." in result.output
+    assert ".ocopy-checkpoint" in result.output
+
+
+def test_cancel_machine_readable(tmp_path, mocker):
+    src = tmp_path / "src"
+    src.mkdir()
+    dst1 = tmp_path / "dst1"
+    dst1.mkdir()
+    dst2 = tmp_path / "dst2"
+    dst2.mkdir()
+    mocker.patch("ocopy.cli.ocopy.CopyJob", _FakeCancelledJob)
+    runner = CliRunner()
+    result = runner.invoke(cli, ["--machine-readable", src.as_posix(), dst1.as_posix(), dst2.as_posix()])
+    assert result.exit_code == 3
+    lines = result.output.strip().splitlines()
+    summary = lines[-1]
+    assert summary.startswith("{")
+    assert '"status": "cancelled"' in summary
+    # Multi-destination runs surface an array under ``checkpoints``.
+    assert '"checkpoints"' in summary
+    # Both destination checkpoint paths are reported.
+    assert "dst1" in summary
+    assert "dst2" in summary
+
+
+def test_cancel_end_to_end(tmp_path, mocker):
+    """A real CopyJob cancelled before start must exit 3 with proper JSON output."""
+    from ocopy.verified_copy import CopyJob as RealCopyJob
+
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "f.bin").write_bytes(b"hello")
+    dst = tmp_path / "dst"
+    dst.mkdir()
+
+    def _prestart_cancelled(*args, **kwargs):
+        kwargs["auto_start"] = False
+        job = RealCopyJob(*args, **kwargs)
+        job.cancel()
+        job.start()
+        return job
+
+    mocker.patch("ocopy.cli.ocopy.CopyJob", _prestart_cancelled)
+    runner = CliRunner()
+    result = runner.invoke(cli, ["--machine-readable", src.as_posix(), dst.as_posix()])
+    assert result.exit_code == 3
+    summary = result.output.strip().splitlines()[-1]
+    assert '"status": "cancelled"' in summary
+    assert '"files_verified": 0' in summary
+    assert '"checkpoints"' in summary
+    assert (dst / "src" / ".ocopy-checkpoint").is_file()
+    assert not (dst / "src" / "ascmhl").exists()
 
 
 def test_update(card):

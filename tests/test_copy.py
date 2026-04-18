@@ -310,24 +310,54 @@ def test_copy_job(card):
 
 
 def test_copy_job_cancel(card):
+    """Deterministic: cancel before start, then start. No manifest, only checkpoint."""
     src_dir, destinations = card
 
-    job = CopyJob(src_dir, destinations)
+    job = CopyJob(src_dir, destinations, auto_start=False)
     job.cancel()
+    job.start()
 
     while job.finished is not True:
-        sleep(0.1)
+        sleep(0.05)
 
-    # Copy was cancelled before any media; ASC MHL chain + one generation manifest only
+    assert job.interrupted_by_cancel
+    assert job.verified_files_count == 0
+    assert job.result.cancelled is True
     for dest in destinations:
         root = dest / "src"
         assert not (root / "xxHash.txt").exists()
-        assert (root / "ascmhl" / "ascmhl_chain.xml").is_file()
-        assert len(list((root / "ascmhl").glob("*.mhl"))) == 1
-        assert sum(1 for p in root.rglob("*") if p.is_file()) == 2
+        assert not (root / "ascmhl").exists()
+        assert (root / ".ocopy-checkpoint").is_file()
+        # Only the checkpoint sidecar should be on disk; no media landed.
+        assert sum(1 for p in root.rglob("*") if p.is_file()) == 1
+
+
+def test_copy_job_cancel_mid_copy(card):
+    """Inject a counter-based cancel token so the fire-point is deterministic."""
+    src_dir, destinations = card
+
+    ctr = {"n": 0}
+
+    def cancel_mid() -> bool:
+        ctr["n"] += 1
+        return ctr["n"] > 4
+
+    job = CopyJob(src_dir, destinations, auto_start=False, cancel_token=cancel_mid)
+    job.start()
+
+    while job.finished is not True:
+        sleep(0.05)
+
+    assert job.interrupted_by_cancel
+    assert job.verified_files_count >= 1
+    for dest in destinations:
+        root = dest / "src"
+        assert not (root / "ascmhl").exists()
+        assert (root / ".ocopy-checkpoint").is_file()
 
 
 def test_copy_job_cancel_before_start(card):
+    """Lifecycle contract: even a pre-start cancel leaves an empty checkpoint per destination."""
     src_dir, destinations = card
 
     job = CopyJob(src_dir, destinations, auto_start=False)
@@ -337,9 +367,12 @@ def test_copy_job_cancel_before_start(card):
     while job.finished is not True:
         sleep(0.1)
 
-    # No files should be present
+    assert job.interrupted_by_cancel
+    assert job.verified_files_count == 0
     for dest in destinations:
-        assert len(list((dest / "src").glob("**/*"))) == 0
+        root = dest / "src"
+        assert (root / ".ocopy-checkpoint").is_file()
+        assert not (root / "ascmhl").exists()
 
 
 def test_copy_job_progress(card):
@@ -393,7 +426,7 @@ def test_copy_job_verification_error(card, mocker):
     assert len(job.errors) == 1
     assert "Verification failed" in job.errors[0].error_message
     assert rename_mock.call_count == 21  # Only good files get renamed
-    assert unlink_mock.call_count == 24  # Unlink is tried for all temporary files
+    assert unlink_mock.call_count == 3  # Temp files for the one failed verified_copy
 
 
 def test_copy_job_io_error(card, mocker):
@@ -433,4 +466,4 @@ def test_copy_job_io_error(card, mocker):
     assert len(job.errors) == 1
     assert "IO Error" in job.errors[0].error_message
     assert rename_mock.call_count == 21  # Only good files get renamed
-    assert unlink_mock.call_count == 24  # Unlink is tried for all temporary files
+    assert unlink_mock.call_count == 3  # Temp files for the one failed verified_copy
