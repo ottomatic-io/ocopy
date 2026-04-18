@@ -10,7 +10,7 @@ from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from queue import Queue
+from queue import Empty, Queue
 from shutil import copystat
 from threading import Event, Thread
 from time import sleep
@@ -23,7 +23,7 @@ from ocopy.file_info import FileInfo
 from ocopy.hash import find_hash, multi_xxhash_check
 from ocopy.ignored import ignored_paths
 from ocopy.mhl import write_mhl
-from ocopy.progress import get_progress_queue
+from ocopy.progress import ProgressPhase, ProgressUpdate, get_progress_queue
 from ocopy.utils import folder_size, threaded
 
 CancelToken = Callable[[], bool]
@@ -112,7 +112,7 @@ def copy(src_file: Path, destinations: list[Path], chunk_size: int = 1024 * 1024
 
                 x.update(chunk)
                 if progress_queue:
-                    progress_queue.put((src_file, len(chunk)))
+                    progress_queue.put(ProgressUpdate(ProgressPhase.COPY, src_file, len(chunk)))
 
         for future in as_completed(futures):
             future.result()
@@ -460,7 +460,7 @@ def copy_and_seal(
 
 class CopyJob(Thread):
     total_size: int
-    total_done: int
+    total_done: float
     finished: bool
     errors: list[ErrorListEntry]
     result: CopyResult
@@ -480,7 +480,7 @@ class CopyJob(Thread):
         super().__init__()
         self.daemon = True
         self.errors = []
-        self._progress_queue = Queue()
+        self._progress_queue: Queue[ProgressUpdate] = Queue()
         self._cancel = Event()
         # Allow tests and library users to inject a custom cancellation signal
         # (e.g. a counter-based token that fires mid-tree). Production code uses
@@ -502,7 +502,7 @@ class CopyJob(Thread):
 
         self.total_size = folder_size(source)
         self.todo_size = self.total_size * (2 if self.verify else 1)
-        self.total_done = 0
+        self.total_done = 0.0
         self.current_item = None
         self.finished = False
         self._start_time = time.time()
@@ -535,10 +535,22 @@ class CopyJob(Thread):
 
     @threaded
     def _progress_reader(self):
-        while not (self.finished or self.cancelled):
-            file_path, done = self._progress_queue.get()
-            self.current_item = Path(file_path).name
-            self.total_done += done
+        while True:
+            try:
+                update = self._progress_queue.get(timeout=0.5)
+            except Empty:
+                if self.finished or self.cancelled:
+                    break
+                continue
+            name = update.path.name
+            if name.endswith(".copy_in_progress"):
+                name = name.removesuffix(".copy_in_progress")
+            self.current_item = name
+            if update.phase == ProgressPhase.VERIFY:
+                denom = max(1, update.parallel_verify_readers)
+                self.total_done += update.nbytes / denom
+            else:
+                self.total_done += update.nbytes
 
     @property
     def percent_done(self) -> int:
@@ -576,4 +588,4 @@ class CopyJob(Thread):
                 self.errors = e.args[0]
         finally:
             self.finished = True
-            self.total_done = self.todo_size
+            self.total_done = float(self.todo_size)

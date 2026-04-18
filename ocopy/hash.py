@@ -11,10 +11,10 @@ from ascmhl.history import MHLHistory
 from ocopy.checkpoint import Checkpoint
 from ocopy.dot_hash import find_dot_xxhash, get_hash_from_dot_xxhash
 from ocopy.mhl import find_mhl, get_hash_from_mhl
-from ocopy.progress import get_progress_queue
+from ocopy.progress import ProgressPhase, ProgressUpdate, get_progress_queue
 
 
-def get_hash(file_path: Path, progress_queue: Queue | None = None, total_files: int = 1) -> str:
+def get_hash(file_path: Path, progress_queue: Queue[ProgressUpdate] | None = None, total_files: int = 1) -> str:
     x = xxhash.xxh64()
 
     with open(file_path, "rb") as f:
@@ -22,10 +22,12 @@ def get_hash(file_path: Path, progress_queue: Queue | None = None, total_files: 
             x.update(chunk)
             if progress_queue:
                 progress_queue.put(
-                    (
-                        file_path.with_name(file_path.name.replace(".copy_in_progress", "") + " (verify)"),
-                        len(chunk) / total_files,
-                    )
+                    ProgressUpdate(
+                        ProgressPhase.VERIFY,
+                        file_path,
+                        len(chunk),
+                        parallel_verify_readers=total_files,
+                    ),
                 )
 
     return x.hexdigest()
