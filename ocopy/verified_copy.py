@@ -21,7 +21,7 @@ from ocopy.ascmhl_seal import ASCMHLSealError, seal_ascmhl_destinations
 from ocopy.checkpoint import Checkpoint
 from ocopy.file_info import FileInfo
 from ocopy.hash import find_hash, multi_xxhash_check
-from ocopy.ignored import ignored_paths
+from ocopy.ignored import is_ignored_basename
 from ocopy.mhl import write_mhl
 from ocopy.progress import ProgressPhase, ProgressUpdate, get_progress_queue
 from ocopy.utils import folder_size, threaded
@@ -166,7 +166,7 @@ def copytree(
         if state.cancel_token():
             break
 
-        if src_path.name in ignored_paths:
+        if is_ignored_basename(src_path.name):
             continue
         dst_paths = [d / src_path.name for d in destinations]
         try:

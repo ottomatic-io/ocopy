@@ -1,5 +1,7 @@
 """Tests for ``.ocopy-checkpoint`` JSONL sidecar."""
 
+from ascmhl.__version__ import ascmhl_folder_name
+
 from ocopy.checkpoint import Checkpoint
 from ocopy.ignored import ignored_paths
 
@@ -33,6 +35,10 @@ def test_checkpoint_truncated_last_record_ignored(tmp_path):
 
 def test_checkpoint_in_ignored_paths():
     assert ".ocopy-checkpoint" in ignored_paths
+
+
+def test_ascmhl_folder_name_in_ignored_paths():
+    assert ascmhl_folder_name in ignored_paths
 
 
 def test_checkpoint_clear(tmp_path):
