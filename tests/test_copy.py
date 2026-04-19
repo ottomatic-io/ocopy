@@ -270,7 +270,7 @@ def test_copytree_alphabetical_order(tmp_path):
     assert rel == ["apple.txt", "folder/a.txt", "folder/b.txt", "middle.txt", "zebra.txt"]
 
 
-def test_copy_job_finishes_while_source_tree_grows(tmp_path):
+def test_copy_job_finishes_while_source_tree_grows(tmp_path, mocker):
     """CopyJob must reach ``finished`` when the source tree grows during the run.
 
     Two background writers add files while copy is in progress: one under a
@@ -279,29 +279,43 @@ def test_copy_job_finishes_while_source_tree_grows(tmp_path):
     or the test tears down, so the scenario does not depend on a fixed write
     count.
 
-    Assertions require that some files appeared after the job started, so the
-    test is not a no-op on unrealistically fast hardware.
+    Synchronize on the first real ``copy()`` call rather than a wall-clock
+    "job started" guess: the big root file blocks until both writers have added
+    at least one file after copy has actually begun. This keeps the test
+    meaningful on very fast CI while still exercising issue #8.
     """
+    import ocopy.verified_copy as vc
+
     src = tmp_path / "src"
     dst = tmp_path / "dst"
     src.mkdir()
     dst.mkdir()
-    (src / "a_big.bin").write_bytes(b"x" * (32 * 1024 * 1024))
+    big_file = src / "a_big.bin"
+    big_file.write_bytes(b"x" * (32 * 1024 * 1024))
     late = src / "z_sub"
     late.mkdir()
     (late / "seed.txt").write_text("seed")
 
     stop = threading.Event()
-    added_after_start = {"sub": 0, "root": 0}
-    job_started = threading.Event()
+    copy_started = threading.Event()
+    sub_added_after_copy_started = threading.Event()
+    root_added_after_copy_started = threading.Event()
+    growth_observed = {"ok": False}
+
+    def _mark_added_after_copy_started(which: str) -> None:
+        if not copy_started.is_set():
+            return
+        if which == "sub":
+            sub_added_after_copy_started.set()
+        else:
+            root_added_after_copy_started.set()
 
     def spam_sub() -> None:
         i = 0
         while not stop.is_set():
             (late / f"sub_{i}.txt").write_text("x")
             i += 1
-            if job_started.is_set():
-                added_after_start["sub"] += 1
+            _mark_added_after_copy_started("sub")
             # Without a small yield, slow CI can accumulate a huge z_sub snapshot
             # (one verified_copy per file) and hit the join timeout even though the
             # job is making progress — not a hang.
@@ -314,9 +328,20 @@ def test_copy_job_finishes_while_source_tree_grows(tmp_path):
             # for trivial "scanned first" reasons.
             (src / f"zz_root_{i}.txt").write_text("x")
             i += 1
-            if job_started.is_set():
-                added_after_start["root"] += 1
+            _mark_added_after_copy_started("root")
             sleep(0.008)
+
+    real_copy = vc.copy
+
+    def gated_copy(src_file, destinations, chunk_size=1024 * 1024):
+        if src_file == big_file:
+            copy_started.set()
+            growth_observed["ok"] = sub_added_after_copy_started.wait(timeout=5) and root_added_after_copy_started.wait(
+                timeout=5
+            )
+        return real_copy(src_file, destinations, chunk_size)
+
+    mocker.patch("ocopy.verified_copy.copy", side_effect=gated_copy)
 
     writers = [threading.Thread(target=spam_sub), threading.Thread(target=spam_root)]
     for w in writers:
@@ -324,16 +349,15 @@ def test_copy_job_finishes_while_source_tree_grows(tmp_path):
     job: CopyJob | None = None
     try:
         job = CopyJob(src, [dst], mhl=False, verify=True)
-        job_started.set()
         # Generous wall clock: this test is bounded by CI I/O, not product logic.
         job.join(timeout=300)
         assert job.finished, "CopyJob did not finish within 300s (possible hang while copying a growing tree)"
         assert not job.errors, f"CopyJob reported errors: {[e.error_message for e in job.errors]}"
         assert (dst / "src" / "z_sub" / "seed.txt").is_file()
-        # The race must have actually happened in at least one spammer; otherwise
+        # The race must have actually happened in both writer threads; otherwise
         # this test is not exercising issue #8 and should fail loudly.
-        assert added_after_start["sub"] + added_after_start["root"] > 0, (
-            "no files were added after the job started; test did not exercise concurrent source growth"
+        assert growth_observed["ok"], (
+            "writers did not add files after copy actually started; test did not exercise concurrent source growth"
         )
     finally:
         stop.set()
