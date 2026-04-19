@@ -34,7 +34,7 @@ def _report_cancelled(job: CopyJob, machine_readable: bool) -> None:
 
 
 @click.command()
-@click.version_option(prog_name="o/COPY")
+@click.version_option(prog_name="o/COPY", package_name="ocopy")
 @click.option(
     "--overwrite/--dont-overwrite",
     help="Allow overwriting of destination files (defaults to --dont-overwrite)",
