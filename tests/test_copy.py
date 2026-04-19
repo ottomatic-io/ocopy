@@ -43,11 +43,7 @@ def _install_counting_rename_tmps(mocker):
 def _is_dst3_a001c001_verify_tmp(file_path) -> bool:
     """Match the poisoned tmp path across platforms (avoids brittle substring tests on Windows)."""
     p = Path(file_path)
-    return (
-        p.name == "A001C001_XXXX_XXXX.mov.copy_in_progress"
-        and "dst_3" in p.parts
-        and "A001XXXX" in p.parts
-    )
+    return p.name == "A001C001_XXXX_XXXX.mov.copy_in_progress" and "dst_3" in p.parts and "A001XXXX" in p.parts
 
 
 def test_get_hash(tmpdir):
