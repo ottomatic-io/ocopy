@@ -34,12 +34,16 @@ Update an existing install:
 uv tool upgrade ocopy
 ```
 
-### With pip
+### With pipx
 
-If you already use pip and Python 3.11+:
+If you prefer the pip ecosystem, [pipx](https://pipx.pypa.io/) does the same job as `uv tool install`: it puts each CLI app in its own environment and exposes the `ocopy` command on your `PATH`.
 
 ```shell
-pip3 install -U ocopy
+pipx install ocopy
+```
+
+```shell
+pipx upgrade ocopy
 ```
 
 ## Usage

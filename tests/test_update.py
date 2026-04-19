@@ -6,6 +6,7 @@ from packaging.version import Version
 import ocopy
 from ocopy.cli.update import (
     Updater,
+    _is_pipx_environment,
     _is_uv_tool_environment,
     _normalize_installer_label,
     _read_installer,
@@ -125,6 +126,22 @@ def test_is_uv_tool_true_when_under_default_uv_tools_path(tmp_path, monkeypatch,
     assert _is_uv_tool_environment() is True
 
 
+def test_is_pipx_true_when_prefix_under_pipx_venvs(tmp_path, monkeypatch):
+    monkeypatch.setattr("sys.prefix", str(tmp_path / "pipx" / "venvs" / "ocopy"))
+    assert _is_pipx_environment() is True
+
+
+def test_is_pipx_true_for_custom_pipx_home_layout(tmp_path, monkeypatch):
+    """``$PIPX_HOME/venvs/<app>/`` does not always contain the substring ``/pipx/venvs/``."""
+    monkeypatch.setattr("sys.prefix", str(tmp_path / "pipx_home" / "venvs" / "ocopy"))
+    assert _is_pipx_environment() is True
+
+
+def test_is_pipx_false_for_plain_venv(tmp_path, monkeypatch):
+    monkeypatch.setattr("sys.prefix", str(tmp_path / ".venv"))
+    assert _is_pipx_environment() is False
+
+
 def test_suggested_update_command_uv_tool(tmp_path, monkeypatch):
     monkeypatch.setattr("sys.prefix", str(tmp_path))
     (tmp_path / "uv-receipt.toml").write_text("[tool]\nrequirements = []\n", encoding="utf-8")
@@ -135,7 +152,13 @@ def test_suggested_update_command_uv_pip(mocker, tmp_path, monkeypatch):
     monkeypatch.setattr("sys.prefix", str(tmp_path))
     mocker.patch("ocopy.cli.update._read_installer", return_value="uv")
     mocker.patch("ocopy.cli.update._is_uv_tool_environment", return_value=False)
+    mocker.patch("ocopy.cli.update._is_pipx_environment", return_value=False)
     assert suggested_update_command() == "uv pip install -U ocopy"
+
+
+def test_suggested_update_command_pipx(tmp_path, monkeypatch):
+    monkeypatch.setattr("sys.prefix", str(tmp_path / "pipx" / "venvs" / "ocopy"))
+    assert suggested_update_command() == "pipx upgrade ocopy"
 
 
 def test_suggested_update_command_unknown_installer_uses_uv_tool(mocker, tmp_path, monkeypatch):

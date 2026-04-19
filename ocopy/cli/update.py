@@ -75,11 +75,29 @@ def _is_uv_tool_environment() -> bool:
     return False
 
 
+def _is_pipx_environment() -> bool:
+    """True when ocopy runs from a pipx-managed venv (``INSTALLER`` is ``pip``).
+
+    pipx always places each app venv at ``$PIPX_HOME/venvs/<name>/``, so the parent
+    directory of ``sys.prefix`` is named ``venvs``. This matches the default layout
+    (e.g. ``.../share/pipx/venvs/ocopy``) and custom ``PIPX_HOME`` (e.g.
+    ``.../pipx_home/venvs/ocopy``), neither of which is detectable via a fixed
+    ``/pipx/venvs/`` substring alone.
+    """
+    try:
+        return Path(sys.prefix).resolve().parent.name == "venvs"
+    except Exception:
+        return False
+
+
 def suggested_update_command() -> str:
     # INSTALLER values (ocopy 0.8.0, manual check): pip→pip; uv pip & uv tool→uv
     # (tool env uses receipt above); Poetry→"Poetry x.y"→poetry; PDM→pdm; Pipenv→pip.
+    # pipx uses pip; venv is always $PIPX_HOME/venvs/<name>/ (see _is_pipx_environment).
     if _is_uv_tool_environment():
         return "uv tool upgrade ocopy"
+    if _is_pipx_environment():
+        return "pipx upgrade ocopy"
     installer = _read_installer("ocopy")
     if installer == "uv":
         return "uv pip install -U ocopy"
