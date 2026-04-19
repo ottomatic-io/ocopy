@@ -40,6 +40,16 @@ def _install_counting_rename_tmps(mocker):
     return counter
 
 
+def _is_dst3_a001c001_verify_tmp(file_path) -> bool:
+    """Match the poisoned tmp path across platforms (avoids brittle substring tests on Windows)."""
+    p = Path(file_path)
+    return (
+        p.name == "A001C001_XXXX_XXXX.mov.copy_in_progress"
+        and "dst_3" in p.parts
+        and "A001XXXX" in p.parts
+    )
+
+
 def test_get_hash(tmpdir):
     p = Path(tmpdir) / "test-äöüàéè.txt"
 
@@ -154,8 +164,6 @@ def test_verified_copy_skip(tmp_path):
 
 
 def test_verified_copy_io_error(tmp_path, mocker):
-    from contextlib import contextmanager
-
     class FakeIo:
         def __init__(self, file_path):
             self._file_path = file_path
@@ -165,14 +173,22 @@ def test_verified_copy_io_error(tmp_path, mocker):
             return self._data.read(count)
 
         def write(self, data):
-            if "dst_3" in Path(self._file_path).as_posix():
+            if "dst_3" in Path(self._file_path).parts:
                 sleep(0.2)
                 raise OSError()
             return len(data)
 
-    @contextmanager
-    def fake_open(path, options, **kwds):
-        yield FakeIo(path)
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info):
+            return False
+
+        def close(self):
+            pass
+
+    def fake_open(path, mode="r", *args, **kwargs):
+        return FakeIo(path)
 
     mocker.patch("builtins.open", fake_open)
     mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
@@ -194,8 +210,6 @@ def test_verified_copy_io_error(tmp_path, mocker):
 
 
 def test_verified_copy_verification_error(tmp_path, mocker):
-    from contextlib import contextmanager
-
     class FakeIo:
         def __init__(self, file_path):
             self._file_path = file_path
@@ -203,16 +217,24 @@ def test_verified_copy_verification_error(tmp_path, mocker):
             self._damaged_data = BytesIO(b"some BROKEN fake data")
 
         def read(self, count):
-            if "dst_3" in Path(self._file_path).as_posix():
+            if "dst_3" in Path(self._file_path).parts:
                 return self._damaged_data.read(count)
             return self._data.read(count)
 
         def write(self, data):
             return len(data)
 
-    @contextmanager
-    def fake_open(path, options, **kwds):
-        yield FakeIo(path)
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info):
+            return False
+
+        def close(self):
+            pass
+
+    def fake_open(path, mode="r", *args, **kwargs):
+        return FakeIo(path)
 
     mocker.patch("builtins.open", fake_open)
     mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
@@ -506,8 +528,6 @@ def test_copy_job_progress(card):
 
 
 def test_copy_job_verification_error(card, mocker):
-    from contextlib import contextmanager
-
     class FakeIo:
         def __init__(self, file_path):
             self._file_path = file_path
@@ -515,16 +535,26 @@ def test_copy_job_verification_error(card, mocker):
             self._damaged_data = BytesIO(b"some BROKEN fake data")
 
         def read(self, count):
-            if "dst_3/src/A001XXXX/A001C001_XXXX_XXXX.mov.copy_in_progress" in Path(self._file_path).as_posix():
+            if _is_dst3_a001c001_verify_tmp(self._file_path):
                 return self._damaged_data.read(count)
             return self._data.read(count)
 
         def write(self, data):
             return len(data)
 
-    @contextmanager
-    def fake_open(path, options, **kwds):
-        yield FakeIo(path)
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info):
+            return False
+
+        def close(self):
+            pass
+
+    def fake_open(path, mode="r", *args, **kwargs):
+        # Return a real file-like object, not a @contextmanager wrapper: mhllib and
+        # ``with open(...)`` both expect ``open()`` to yield something with read/write.
+        return FakeIo(path)
 
     unlinked_paths: list[Path] = []
 
@@ -558,8 +588,6 @@ def test_copy_job_verification_error(card, mocker):
 
 
 def test_copy_job_io_error(card, mocker):
-    from contextlib import contextmanager
-
     class FakeIo:
         def __init__(self, file_path):
             self._file_path = file_path
@@ -569,14 +597,22 @@ def test_copy_job_io_error(card, mocker):
             return self._data.read(count)
 
         def write(self, data):
-            if "dst_3/src/A001XXXX/A001C001_XXXX_XXXX.mov.copy_in_progress" in Path(self._file_path).as_posix():
+            if _is_dst3_a001c001_verify_tmp(self._file_path):
                 sleep(0.2)
                 raise OSError("IO Error")
             return len(data)
 
-    @contextmanager
-    def fake_open(path, options, **kwds):
-        yield FakeIo(path)
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info):
+            return False
+
+        def close(self):
+            pass
+
+    def fake_open(path, mode="r", *args, **kwargs):
+        return FakeIo(path)
 
     unlinked_paths: list[Path] = []
 
