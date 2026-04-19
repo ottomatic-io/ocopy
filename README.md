@@ -20,9 +20,25 @@
 
 ## Installation / Update
 
-### With pip
-If you have Python 3.11 or newer installed you can just use `pip`:
+### Recommended: uv
+
+[uv](https://docs.astral.sh/uv/) is an extremely fast Python package and project manager, written in Rust. If you do not have it yet: with [Homebrew](https://brew.sh/), run `brew install uv`; for the official standalone installer and everything else, see [Installing uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+```shell
+uv tool install ocopy
 ```
+
+Update an existing install:
+
+```shell
+uv tool upgrade ocopy
+```
+
+### With pip
+
+If you already use pip and Python 3.11+:
+
+```shell
 pip3 install -U ocopy
 ```
 

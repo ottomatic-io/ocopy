@@ -1,12 +1,101 @@
 import logging
-from importlib.metadata import PackageNotFoundError
+import sys
+from importlib.metadata import PackageNotFoundError, distributions
 from importlib.metadata import version as get_version
+from pathlib import Path
 from threading import Thread
 
 import requests
 from packaging.version import InvalidVersion, Version
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_dist_name(name: str) -> str:
+    return (name or "").lower().replace("-", "_")
+
+
+def _read_installer(dist_name: str) -> str | None:
+    """Read the PEP 376 ``INSTALLER`` file when present.
+
+    ``importlib.metadata.distribution()`` can resolve editable installs to a legacy
+    ``.egg-info`` tree that has no ``INSTALLER``, while a parallel ``.dist-info`` in
+    ``site-packages`` does — so we scan distributions and prefer ``.dist-info``.
+    """
+    want = _normalize_dist_name(dist_name)
+    fallback: str | None = None
+    for dist in distributions():
+        try:
+            name = dist.metadata["Name"]
+        except KeyError:
+            name = ""
+        if _normalize_dist_name(name) != want:
+            continue
+        text = dist.read_text("INSTALLER")
+        if not text:
+            continue
+        value = _normalize_installer_label(text)
+        if not value:
+            continue
+        if ".dist-info" in str(getattr(dist, "_path", "")):
+            return value
+        fallback = fallback or value
+    return fallback
+
+
+def _normalize_installer_label(text: str) -> str | None:
+    """First line, first word, lowercased (e.g. ``Poetry 2`` → ``poetry``)."""
+    line = text.strip().splitlines()[0].strip().lower() if text.strip() else ""
+    if not line:
+        return None
+    return line.split()[0]
+
+
+def _is_conda_env() -> bool:
+    """True when running inside a conda / mamba / micromamba environment."""
+    return (Path(sys.prefix).resolve() / "conda-meta").is_dir()
+
+
+def _is_uv_tool_environment() -> bool:
+    """True when ocopy was installed with ``uv tool install`` (not ``uv pip`` / pip)."""
+    receipt = Path(sys.prefix).resolve() / "uv-receipt.toml"
+    if receipt.is_file():
+        try:
+            return receipt.read_text(encoding="utf-8").lstrip().startswith("[tool]")
+        except OSError:
+            return False
+    try:
+        import ocopy
+
+        p = Path(ocopy.__file__).resolve().as_posix()
+        if "/uv/tools/" in p.replace("\\", "/"):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def suggested_update_command() -> str:
+    # INSTALLER values (ocopy 0.8.0, manual check): pip→pip; uv pip & uv tool→uv
+    # (tool env uses receipt above); Poetry→"Poetry x.y"→poetry; PDM→pdm; Pipenv→pip.
+    if _is_uv_tool_environment():
+        return "uv tool upgrade ocopy"
+    installer = _read_installer("ocopy")
+    if installer == "uv":
+        return "uv pip install -U ocopy"
+    if installer == "pip":
+        return "python -m pip install -U ocopy" if _is_conda_env() else "pip3 install -U ocopy"
+    if installer == "poetry":
+        return "poetry update ocopy"
+    if installer == "pdm":
+        return "pdm update ocopy"
+    if installer == "conda":
+        # ocopy is not published as a conda package; pip inside the env is the practical path.
+        return "python -m pip install -U ocopy"
+    if installer is None and _is_conda_env():
+        return "python -m pip install -U ocopy"
+    # Unknown installer outside conda: README default (uv tool install).
+    return "uv tool upgrade ocopy"
 
 
 class Updater(Thread):

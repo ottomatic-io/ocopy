@@ -7,7 +7,7 @@ from pathlib import Path
 import click
 
 from ocopy.backup_check import get_missing
-from ocopy.cli.update import Updater
+from ocopy.cli.update import Updater, suggested_update_command
 from ocopy.sleep_inhibit import sleep_inhibit_best_effort
 from ocopy.utils import folder_size, free_space, get_mount
 from ocopy.verified_copy import CopyJob
@@ -185,7 +185,8 @@ def cli(
             sys.exit(1)
 
         if updater.needs_update:
-            click.secho("Please update to the latest o/COPY version using `pip3 install -U ocopy`.", fg="blue")
+            cmd = suggested_update_command()
+            click.secho(f"Please update to the latest o/COPY version using `{cmd}`.", fg="blue")
 
         job.join(timeout=1)
     updater.join(timeout=1)
