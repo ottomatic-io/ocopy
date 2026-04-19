@@ -25,7 +25,7 @@ import os
 import shutil
 import subprocess
 import sys
-import time
+import threading
 import uuid
 from pathlib import Path
 
@@ -82,23 +82,8 @@ def _detach_best_effort(mountpoint: Path) -> None:
     )
 
 
-def _wait_for_copy_in_progress_under(dest_subtree: Path, *, timeout: float) -> None:
-    """Block until ocopy creates a ``*.copy_in_progress`` file or ``timeout`` elapses."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if dest_subtree.is_dir():
-            for p in dest_subtree.rglob("*"):
-                if p.is_file() and p.name.endswith(".copy_in_progress"):
-                    return
-        time.sleep(0.05)
-    pytest.fail(
-        f"Timed out after {timeout}s waiting for a .copy_in_progress file under {dest_subtree}; "
-        "cannot exercise mid-transfer detach (runner too fast or copy never reached the volume)."
-    )
-
-
 @pytest.mark.skipif(sys.platform != "darwin", reason="hdiutil-based probe is macOS-only")
-def test_real_detach_mid_copy_is_reported_no_silent_writes(tmp_path):
+def test_real_detach_mid_copy_is_reported_no_silent_writes(tmp_path, mocker):
     """Empirical probe of issue #15 using the realistic macOS mount lifecycle.
 
     No ``-mountpoint`` flag: ``hdiutil attach`` mounts under ``/Volumes/<volname>``, the
@@ -122,6 +107,8 @@ def test_real_detach_mid_copy_is_reported_no_silent_writes(tmp_path):
 
     job: CopyJob | None = None
     image_dev: int | None = None
+    mounted_write_started = threading.Event()
+    detach_complete = threading.Event()
 
     try:
         _hdiutil("create", "-size", "512m", "-fs", "HFS+", "-volname", volname, str(dmg))
@@ -153,13 +140,48 @@ def test_real_detach_mid_copy_is_reported_no_silent_writes(tmp_path):
         dst_ok = tmp_path / "dst_ok"
         dst_ok.mkdir()
 
+        real_open = builtins.open
+
+        class _GateMountedWrite:
+            def __init__(self, wrapped):
+                self._wrapped = wrapped
+                self._gated = False
+
+            def write(self, data):
+                if not self._gated:
+                    self._gated = True
+                    mounted_write_started.set()
+                    assert detach_complete.wait(timeout=30), "timed out waiting to detach mounted destination"
+                return self._wrapped.write(data)
+
+            def __enter__(self):
+                self._wrapped.__enter__()
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return self._wrapped.__exit__(exc_type, exc, tb)
+
+            def __getattr__(self, name):
+                return getattr(self._wrapped, name)
+
+        def fake_open(file, *args, **kwargs):
+            handle = real_open(file, *args, **kwargs)
+            path_str = os.fspath(file)
+            mode = args[0] if args else kwargs.get("mode", "r")
+            if path_str.startswith(os.fspath(mountpoint)) and ".copy_in_progress" in path_str and "w" in mode:
+                return _GateMountedWrite(handle)
+            return handle
+
+        mocker.patch("builtins.open", side_effect=fake_open)
+
         job = CopyJob(src, [dst_ok, mountpoint], verify=True, mhl=False, auto_start=False)
         job.start()
 
-        # Detach only after we see real write activity on the volume; a fixed sleep
-        # races fast runners where the whole job can finish before detach.
-        _wait_for_copy_in_progress_under(mountpoint / src.name, timeout=120.0)
+        # Detach on the first actual mounted-volume write, not a polled filesystem
+        # observation that can notice too late on fast runners.
+        assert mounted_write_started.wait(timeout=120), "timed out waiting for the first mounted destination write"
         _detach_best_effort(mountpoint)
+        detach_complete.set()
 
         job.join(timeout=180)
     finally:
