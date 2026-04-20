@@ -50,6 +50,10 @@ dev = [
 [tool.pytest.ini_options]
 norecursedirs = ["venv", "dist", "build", ".venv"]
 addopts = "--cov-report=xml --cov=ocopy -v"
+filterwarnings = [
+    # ascmhl: pathspec.PathSpec.from_lines("gitwildmatch", ...) (deprecated in pathspec 1.0.4).
+    "ignore:GitWildMatchPattern \\('gitwildmatch'\\) is deprecated\\..*:DeprecationWarning:pathspec\\..*",
+]
 
 [tool.ruff]
 line-length = 120
