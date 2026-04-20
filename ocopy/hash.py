@@ -1,5 +1,5 @@
 from concurrent import futures
-from functools import partial
+from functools import lru_cache, partial
 from pathlib import Path
 from queue import Queue
 
@@ -9,8 +9,7 @@ from ascmhl.__version__ import ascmhl_folder_name
 from ascmhl.history import MHLHistory
 
 from ocopy.checkpoint import Checkpoint
-from ocopy.dot_hash import find_dot_xxhash, get_hash_from_dot_xxhash
-from ocopy.mhl import find_mhl, get_hash_from_mhl
+from ocopy.mhl import find_mhl, xxh64_from_legacy_mhl_path
 from ocopy.progress import ProgressPhase, ProgressUpdate, get_progress_queue
 
 
@@ -87,15 +86,38 @@ def _xxh64_from_checkpoint(content_root: Path, file_path: Path) -> str | None:
     return Checkpoint(content_root).lookup(rel, st.st_size, st.st_mtime)
 
 
-def _xxh64_latest_from_ascmhl(content_root: Path, file_path: Path) -> str | None:
+@lru_cache(maxsize=1024)
+def _cached_load_ascmhl(content_root_str: str, _mtime_ns: int) -> MHLHistory | None:
+    """Load ASC MHL history; keyed by ``(content_root_str, mtime_ns)`` of ``ascmhl/``.
+
+    ``maxsize=1024``: typical runs touch one or a few content roots; re-seals add new
+    ``mtime_ns`` keys. This bounds retained ``MHLHistory`` objects in long-lived
+    processes (e.g. GUI) while leaving plenty of headroom for many volumes and
+    generations of invalidation keys.
+    """
     try:
-        history = MHLHistory.load_from_path(str(content_root))
+        return MHLHistory.load_from_path(content_root_str)
     except (
         ascmhl_errors.NoMHLChainException,
         ascmhl_errors.ModifiedMHLManifestFileException,
         ascmhl_errors.MissingMHLManifestException,
         OSError,
     ):
+        return None
+
+
+def _load_ascmhl_history(content_root: Path) -> MHLHistory | None:
+    marker = content_root / ascmhl_folder_name
+    try:
+        mtime_ns = marker.stat().st_mtime_ns
+    except OSError:
+        return None
+    return _cached_load_ascmhl(str(content_root.resolve()), mtime_ns)
+
+
+def _xxh64_latest_from_ascmhl(content_root: Path, file_path: Path) -> str | None:
+    history = _load_ascmhl_history(content_root)
+    if history is None:
         return None
 
     try:
@@ -136,13 +158,11 @@ def find_hash(file_path: Path) -> str | None:
 
     dot_mhl = find_mhl(file_path)
     if dot_mhl:
-        file_hash = get_hash_from_mhl(dot_mhl.read_text(), file_path.relative_to(dot_mhl.parent))
-        if file_hash:
-            return file_hash
-
-    dot_xxhash = find_dot_xxhash(file_path)
-    if dot_xxhash:
-        file_hash = get_hash_from_dot_xxhash(dot_xxhash.read_text(), file_path.relative_to(dot_xxhash.parent))
+        try:
+            rel = file_path.resolve().relative_to(dot_mhl.parent.resolve())
+        except ValueError:
+            return None
+        file_hash = xxh64_from_legacy_mhl_path(dot_mhl, rel)
         if file_hash:
             return file_hash
 

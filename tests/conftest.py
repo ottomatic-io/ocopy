@@ -3,6 +3,16 @@ import random
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _clear_hash_caches():
+    from ocopy.hash import _cached_load_ascmhl
+    from ocopy.mhl import _cached_load_mhl_index
+
+    for fn in (_cached_load_ascmhl, _cached_load_mhl_index):
+        fn.cache_clear()
+    yield
+
+
 @pytest.fixture
 def card(tmp_path):
     src_dir = tmp_path / "src"

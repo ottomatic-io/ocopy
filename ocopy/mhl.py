@@ -2,6 +2,7 @@ import datetime
 import getpass
 import os
 from _socket import gethostname
+from functools import lru_cache
 from pathlib import Path
 
 from defusedxml import ElementTree
@@ -84,15 +85,60 @@ def get_hash_from_mhl(mhl: str, file_path: Path) -> str | None:
     return None
 
 
+def _mhl_text_to_xxh64_index(mhl: str) -> dict[str, str]:
+    """Build ``posix_relpath -> xxh64`` from legacy flat MHL XML (first occurrence wins)."""
+    if not mhl:
+        return {}
+    root = ElementTree.fromstring(mhl)
+    out: dict[str, str] = {}
+    for hash_element in root.findall("hash"):
+        file_elem = hash_element.find("file")
+        if file_elem is None or not file_elem.text:
+            continue
+        path_key = file_elem.text
+        if path_key in out:
+            continue
+        xxhash_elem = hash_element.find("xxhash64be")
+        if xxhash_elem is not None and xxhash_elem.text:
+            out[path_key] = xxhash_elem.text
+    return out
+
+
+@lru_cache(maxsize=128)
+def _cached_load_mhl_index(mhl_path_str: str, mtime_ns: int) -> dict[str, str]:
+    """Parse legacy flat ``*.mhl`` into a path index; keyed by ``(mhl_path_str, mtime_ns)``.
+
+    ``maxsize=128``: fewer distinct legacy manifest files per process than ASC roots;
+    each entry is a ``dict`` of relpath→xxh64. Bounds memory in long-lived processes
+    while matching the bounded-LRU pattern used for :func:`ocopy.hash._cached_load_ascmhl`.
+    """
+    return _mhl_text_to_xxh64_index(Path(mhl_path_str).read_text(encoding="utf-8"))
+
+
+def xxh64_from_legacy_mhl_path(mhl_path: Path, file_relative_to_mhl_parent: Path) -> str | None:
+    """Resolve xxh64 for ``file_relative_to_mhl_parent`` from the legacy ``*.mhl`` at ``mhl_path``."""
+    try:
+        mtime_ns = mhl_path.stat().st_mtime_ns
+    except OSError:
+        return None
+    index = _cached_load_mhl_index(str(mhl_path.resolve()), mtime_ns)
+    return index.get(file_relative_to_mhl_parent.as_posix())
+
+
 def find_mhl(file_path: Path) -> Path | None:
     """
-    Finds the last created mhl which is closest in the folder hierarchy
-    """
-    if os.path.ismount(file_path):
-        return None
+    Finds the last created mhl which is closest in the folder hierarchy.
 
-    mhl_in_parent = sorted(file_path.parent.glob("*.mhl"))
-    if mhl_in_parent:
-        return mhl_in_parent[-1]
-    else:
-        return find_mhl(file_path.parent)
+    Walks absolute ancestors so a relative ``file_path`` (e.g. ``Path("clip.mov")`` when
+    cwd is ``/Volumes/disk/session``) still discovers mhls in real parent directories
+    and terminates at the filesystem root or a mount point.
+    """
+    # ``strict=False`` tolerates non-existent leaves; we only need an absolute path to walk.
+    resolved = file_path.resolve()
+    for parent in resolved.parents:
+        mhl_in_parent = sorted(parent.glob("*.mhl"))
+        if mhl_in_parent:
+            return mhl_in_parent[-1]
+        if os.path.ismount(parent):
+            return None
+    return None
