@@ -35,7 +35,7 @@ def _commit_ocopy_generation(session: MHLGenerationCreationSession) -> None:
     creator_info.authors.append(MHLAuthor(get_user_display_name()))
 
     process_info = MHLProcessInfo()
-    process_info.process = MHLProcess("in-place")
+    process_info.process = MHLProcess("transfer")
 
     session.commit(creator_info, process_info)
 

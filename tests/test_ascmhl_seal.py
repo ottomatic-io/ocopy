@@ -187,6 +187,23 @@ def test_seal_rejects_mismatched_precomputed_hash(tmp_path):
         seal_ascmhl_destinations([dst_parent], src, tampered)
 
 
+def test_seal_records_transfer_process_type(tmp_path):
+    """ocopy seals the destination after a copy, so the generation's <process> must
+    be ``transfer`` — not the ``in-place`` value that describes hashing files in
+    situ. Regression guard for the previously-incorrect process type."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "a.bin").write_bytes(b"x")
+
+    dst_parent = tmp_path / "dst"
+    dst_parent.mkdir()
+    infos = copytree(src, [dst_parent])
+    seal_ascmhl_destinations([dst_parent], src, infos)
+
+    history = MHLHistory.load_from_path(str(dst_parent))
+    assert history.hash_lists[-1].process_info.process == "transfer"
+
+
 def test_legacy_mhl_writes_flat_manifest(tmp_path):
     srcdir = tmp_path / "srcdir"
     srcdir.mkdir()
