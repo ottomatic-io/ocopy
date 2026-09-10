@@ -63,9 +63,12 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        # Relax lockfile enforcement on experimental Pythons — pre-release
+        # Relax lockfile enforcement on experimental Pythons: pre-release
         # wheels may not exist yet, and we don't want to block on resolver drift.
-        run: ${{ matrix.experimental && 'uv sync --prerelease=allow' || 'uv sync --locked' }}
+        # --upgrade makes uv ignore the locked versions as preferences, so it
+        # can pick newer releases that ship wheels for the pre-release Python
+        # instead of trying (and failing) to build older ones from source.
+        run: ${{ matrix.experimental && 'uv sync --prerelease=allow --upgrade' || 'uv sync --locked' }}
 
       - name: Run tests
         run: uv run pytest
