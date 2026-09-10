@@ -906,6 +906,11 @@ def test_skip_existing_skips_an_immutable_delivered_file(tmp_path):
     src.mkdir()
     immutable = src / "Get_started_with_GoPro.url"
     immutable.write_text("[InternetShortcut]\n")
+    # Age the source well past the fast-skip's mtime tolerance. Without this the
+    # source and the freshly written destination are microseconds apart and the
+    # skip fires even when no metadata was applied at all.
+    old_mtime = 1_000_000_000
+    os.utime(immutable, (old_mtime, old_mtime))
     _set_flags(immutable, stat.UF_IMMUTABLE)
 
     dst = tmp_path / "dst"
@@ -913,9 +918,156 @@ def test_skip_existing_skips_an_immutable_delivered_file(tmp_path):
     try:
         copytree(src, [dst], skip_existing=True)
         first = os.stat(dst / immutable.name).st_mtime
+        assert abs(first - old_mtime) <= 2, "copystat did not carry the source mtime to the destination"
 
         copytree(src, [dst], skip_existing=True)
         assert os.stat(dst / immutable.name).st_mtime == first
         assert (dst / immutable.name).read_text() == "[InternetShortcut]\n"
     finally:
         _unlock_tree(tmp_path)
+
+
+@_needs_flags
+def test_verification_retry_replaces_immutable_destination(tmp_path, mocker):
+    """The repair retry must be able to remove a delivered immutable destination.
+
+    With ``skip_existing`` a delivered file whose size and mtime match is
+    re-verified against the source rather than re-copied. If that verification
+    fails and ``overwrite`` is set, the destination is removed and copied again.
+    That removal hits ``UF_IMMUTABLE`` on a file copied from an immutable source,
+    so it has to go through ``_force_unlink``.
+    """
+    src = tmp_path / "src"
+    src.mkdir()
+    immutable = src / "Get_started_with_GoPro.url"
+    immutable.write_text("[InternetShortcut]\n")
+    _set_flags(immutable, stat.UF_IMMUTABLE)
+
+    dst = tmp_path / "dst"
+    dst.mkdir()
+    copied = dst / immutable.name
+    try:
+        copytree(src, [dst])
+        assert _get_flags(copied) & stat.UF_IMMUTABLE
+
+        import ocopy.verified_copy as vc
+
+        real_check = vc.multi_xxhash_check
+        calls = {"n": 0}
+
+        def flaky_check(filenames, algorithm="xxh64"):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return "hashes_do_not_match"
+            return real_check(filenames, algorithm=algorithm)
+
+        mocker.patch("ocopy.verified_copy.multi_xxhash_check", side_effect=flaky_check)
+
+        copytree(src, [dst], overwrite=True, skip_existing=True)
+
+        assert calls["n"] >= 2, "the first verification was never retried"
+        assert copied.read_text() == "[InternetShortcut]\n"
+        assert _get_flags(copied) & stat.UF_IMMUTABLE
+        assert not list(dst.rglob("*.copy_in_progress"))
+    finally:
+        _unlock_tree(tmp_path)
+
+
+@_needs_flags
+def test_overwrite_of_symlinked_destination_leaves_target_flags_alone(tmp_path):
+    """Removing a symlink at the destination must not strip flags off its target.
+
+    ``os.chflags`` follows symlinks by default, so clearing flags on a symlinked
+    destination would reach through to a file that may live outside the
+    destination tree. ``unlink`` on a symlink never needed the target writable,
+    and it still must not.
+    """
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "clip.mp4").write_text("new" * 100)
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    target = outside / "locked.mp4"
+    target.write_text("locked")
+    _set_flags(target, stat.UF_IMMUTABLE)
+
+    dst = tmp_path / "dst"
+    dst.mkdir()
+    (dst / "clip.mp4").symlink_to(target)
+    try:
+        copytree(src, [dst], overwrite=True)
+
+        assert _get_flags(target) & stat.UF_IMMUTABLE, "the symlink target lost its flags"
+        assert target.read_text() == "locked"
+        assert not (dst / "clip.mp4").is_symlink()
+        assert (dst / "clip.mp4").read_text() == "new" * 100
+    finally:
+        _unlock_tree(tmp_path)
+
+
+def test_rollback_failure_does_not_hide_the_original_error(tmp_path, mocker):
+    """If rolling back a committed destination fails, the root cause is still reported."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "clip.mp4").write_text("x" * 1024)
+
+    d1 = tmp_path / "d1"
+    d1.mkdir()
+    d2 = tmp_path / "d2"
+    d2.mkdir()
+
+    calls = {"n": 0}
+
+    def flaky_copystat(source, dest, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise OSError(errno.EPERM, "metadata failed on purpose")
+        return copystat(source, dest, **kwargs)
+
+    mocker.patch("ocopy.verified_copy.copystat", side_effect=flaky_copystat)
+
+    import ocopy.verified_copy as vc
+
+    real_force_unlink = vc._force_unlink
+
+    def stubborn_force_unlink(path):
+        if path == d1 / "clip.mp4":
+            raise OSError(errno.EACCES, "rollback failed on purpose")
+        return real_force_unlink(path)
+
+    mocker.patch("ocopy.verified_copy._force_unlink", side_effect=stubborn_force_unlink)
+
+    with pytest.raises(CopyTreeError) as excinfo:
+        copytree(src, [d1, d2])
+
+    messages = [entry.error_message for entry in excinfo.value.args[0]]
+    assert any("metadata failed on purpose" in m for m in messages), messages
+    assert not any("rollback failed on purpose" in m for m in messages), messages
+    assert not (d2 / "clip.mp4").exists()
+    assert not list(tmp_path.rglob("*.copy_in_progress"))
+
+
+def test_interrupt_during_metadata_keeps_verified_destinations(tmp_path, mocker):
+    """Ctrl-C between rename and copystat must not delete verified-good files.
+
+    Rollback exists so an *error* cannot leave a half-committed set that looks like
+    a successful copy. An interrupt is different: the bytes at the final path were
+    already verified, and deleting them only costs a re-copy. The job still fails
+    (the interrupt propagates) and a later ``skip_existing`` run reports the mtime
+    mismatch loudly, so nothing is silently wrong.
+    """
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "clip.mp4").write_text("x" * 1024)
+
+    dst = tmp_path / "dst"
+    dst.mkdir()
+
+    mocker.patch("ocopy.verified_copy.copystat", side_effect=KeyboardInterrupt)
+
+    with pytest.raises(KeyboardInterrupt):
+        copytree(src, [dst])
+
+    assert (dst / "clip.mp4").read_text() == "x" * 1024
+    assert not list(tmp_path.rglob("*.copy_in_progress"))

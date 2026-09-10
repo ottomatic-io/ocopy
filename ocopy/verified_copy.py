@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import datetime
+import logging
 import math
 import os
 import time
@@ -25,6 +26,8 @@ from ocopy.ignored import is_ignored_basename
 from ocopy.mhl import write_mhl
 from ocopy.progress import ProgressPhase, ProgressUpdate, get_progress_queue
 from ocopy.utils import folder_size, threaded
+
+logger = logging.getLogger(__name__)
 
 SPEED_WINDOW_S = 5.0
 """Window length (seconds) for live throughput sampling."""
@@ -469,11 +472,15 @@ def _force_unlink(path: Path) -> None:
     Note this also clears a flag a user set by hand (Finder's "Locked"), so an
     explicit ``overwrite=True`` now replaces a locked destination instead of
     failing.
+
+    Flags are cleared on ``path`` itself, never on what it points to. ``unlink``
+    removes a symlink without touching its target, and stripping the target's
+    flags would reach outside the destination tree.
     """
     chflags = getattr(os, "chflags", None)
     if chflags is not None:
         with contextlib.suppress(OSError):
-            chflags(path, 0)
+            chflags(path, 0, follow_symlinks=False)
     with contextlib.suppress(FileNotFoundError):
         path.unlink()
 
@@ -498,12 +505,21 @@ def _rename_tmps(tmps: list[Path], final_paths: list[Path], src_file: Path) -> N
             tmp.rename(final)
             committed.append(final)
             copystat(src_file, final)
-    except BaseException:
+    except Exception:
         # The caller's handler cleans up temps, but these are already at their final
         # paths. With ``overwrite=True`` the previous destination is long gone, so
         # leaving a half-written set behind would look like a successful copy.
+        #
+        # Only ``Exception`` is rolled back. A Ctrl-C landing here would otherwise
+        # delete files whose bytes were already verified; those stay, and a later
+        # ``skip_existing`` run fails loudly on the mtime mismatch instead.
         for final in committed:
-            _force_unlink(final)
+            try:
+                _force_unlink(final)
+            except OSError as why:
+                # Keep the original failure as the reported error; a rollback that
+                # itself fails must not hide the root cause.
+                logger.warning("could not roll back %s: %s", final, why)
         raise
 
 
