@@ -97,8 +97,14 @@ def copy(
     destinations: list[Path],
     chunk_size: int = 1024 * 1024,
     algorithm: str = DEFAULT_ALGORITHM,
+    apply_metadata: bool = True,
 ) -> str:
     """Copy one file to multiple destinations chunk by chunk, returning its hash.
+
+    ``apply_metadata`` stamps the source's mode, times and flags onto each
+    destination. Callers writing to a temporary path they intend to rename should
+    pass ``False`` and apply the metadata to the final path instead -- see
+    :func:`_rename_tmps`.
 
     A mid-stream writer failure (ENOSPC, ENODEV on a yanked drive, etc.) is
     surfaced as an exception rather than a hang: the reader polls each writer's
@@ -174,8 +180,9 @@ def copy(
     for q in queues:
         q.join()
 
-    for d in destinations:
-        copystat(src_file, d)
+    if apply_metadata:
+        for d in destinations:
+            copystat(src_file, d)
 
     return x.string_digest()
 
@@ -378,7 +385,7 @@ def verified_copy(
         copy_hash: str | None = None
         if tmps:
             try:
-                copy_hash = copy(src_file, tmps, algorithm=state.algorithm)
+                copy_hash = copy(src_file, tmps, algorithm=state.algorithm, apply_metadata=False)
             except BaseException:
                 _cleanup_tmps(tmps)
                 raise
@@ -393,7 +400,7 @@ def verified_copy(
         try:
             if not state.need_integrity:
                 assert copy_hash is not None
-                _rename_tmps(tmps, [destinations[i] for i in copy_idx])
+                _rename_tmps(tmps, [destinations[i] for i in copy_idx], src_file)
                 # Any destination that wasn't in ``copy_idx`` or ``verify_idx`` was a
                 # pure metadata-matched skip that never entered the classification lists.
                 state.skipped_files += len(destinations) - len(copy_idx)
@@ -422,7 +429,7 @@ def verified_copy(
                     f"{state.algorithm} hash present on source medium is not correct"
                 )
 
-            _rename_tmps(tmps, [destinations[i] for i in copy_idx])
+            _rename_tmps(tmps, [destinations[i] for i in copy_idx], src_file)
             s = src_stat()
             _record_checkpoints(state.checkpoints, rel_path, s.st_size, s.st_mtime, state.algorithm, digest)
             # ``verify_idx`` destinations were present already and did not receive new bytes,
@@ -449,9 +456,18 @@ def _cleanup_tmps(tmps: list[Path]) -> None:
             tmp.unlink()
 
 
-def _rename_tmps(tmps: list[Path], final_paths: list[Path]) -> None:
+def _rename_tmps(tmps: list[Path], final_paths: list[Path], src_file: Path) -> None:
+    """Move each temp into place, then stamp the source's metadata onto the final path.
+
+    The metadata is applied *after* the rename on purpose. ``copystat`` copies
+    ``st_flags``, so a source carrying ``UF_IMMUTABLE`` (``chflags uchg``) would
+    make the ``.copy_in_progress`` temp itself immutable and the rename would then
+    fail with ``EPERM``, failing the whole copy. GoPro cards ship exactly such
+    files (``Get_started_with_GoPro.url``).
+    """
     for tmp, final in zip(tmps, final_paths, strict=True):
         tmp.rename(final)
+        copystat(src_file, final)
 
 
 def copy_and_seal(

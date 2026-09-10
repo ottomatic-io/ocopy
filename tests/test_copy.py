@@ -1,4 +1,5 @@
 import os
+import stat
 import threading
 from io import BytesIO
 from pathlib import Path
@@ -32,9 +33,9 @@ def _install_counting_rename_tmps(mocker):
     real_rename_tmps = vc._rename_tmps
     counter: dict[str, int] = {"n": 0}
 
-    def wrapped(tmps, final_paths):
+    def wrapped(tmps, final_paths, src_file):
         counter["n"] += len(tmps)
-        return real_rename_tmps(tmps, final_paths)
+        return real_rename_tmps(tmps, final_paths, src_file)
 
     mocker.patch("ocopy.verified_copy._rename_tmps", wrapped)
     return counter
@@ -378,13 +379,13 @@ def test_copy_job_finishes_while_source_tree_grows(tmp_path, mocker):
 
     real_copy = vc.copy
 
-    def gated_copy(src_file, destinations, chunk_size=1024 * 1024, algorithm="xxh64"):
+    def gated_copy(src_file, destinations, chunk_size=1024 * 1024, algorithm="xxh64", **kwargs):
         if src_file == big_file:
             copy_started.set()
             growth_observed["ok"] = sub_added_after_copy_started.wait(timeout=5) and root_added_after_copy_started.wait(
                 timeout=5
             )
-        return real_copy(src_file, destinations, chunk_size, algorithm=algorithm)
+        return real_copy(src_file, destinations, chunk_size, algorithm=algorithm, **kwargs)
 
     mocker.patch("ocopy.verified_copy.copy", side_effect=gated_copy)
 
@@ -708,3 +709,38 @@ def test_copy_job_io_error(card, mocker):
     # destination.
     expected_tmps = {dest / "src" / "A001XXXX" / "A001C001_XXXX_XXXX.mov.copy_in_progress" for dest in destinations}
     assert expected_tmps <= set(unlinked_paths)
+
+
+@pytest.mark.skipif(not hasattr(os, "chflags"), reason="requires BSD/macOS file flags")
+def test_immutable_source_file_is_copied(tmp_path):
+    """A ``uchg`` source file must not break the tmp->final rename.
+
+    ``copystat`` copies ``st_flags``. Applying it to the ``.copy_in_progress``
+    temp made the temp itself immutable, so the rename failed with ``EPERM`` and
+    took the whole job down. GoPro cards ship such files
+    (``Get_started_with_GoPro.url``), so every card job failed.
+    """
+    src = tmp_path / "src"
+    src.mkdir()
+    immutable = src / "Get_started_with_GoPro.url"
+    immutable.write_text("[InternetShortcut]\n")
+    plain = src / "clip.mp4"
+    plain.write_text("x" * 1024)
+    os.chflags(immutable, stat.UF_IMMUTABLE)
+
+    dst = tmp_path / "dst"
+    dst.mkdir()
+    copied = dst / immutable.name
+    try:
+        copytree(src, [dst])
+
+        assert copied.exists()
+        assert copied.read_text() == "[InternetShortcut]\n"
+        # The flag belongs on the delivered file, not on the temp.
+        assert os.stat(copied).st_flags & stat.UF_IMMUTABLE
+        assert not list(dst.rglob("*.copy_in_progress"))
+        assert (dst / plain.name).exists()
+    finally:
+        for p in (immutable, copied):
+            if p.exists():
+                os.chflags(p, 0)
