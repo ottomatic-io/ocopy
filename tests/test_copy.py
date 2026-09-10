@@ -132,7 +132,7 @@ def test_copy(tmpdir, algorithm):
 
 def test_copy_mocked(tmpdir, mocker):
     copystat_mock = mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
-    open_mock = mocker.patch("builtins.open", mocker.mock_open(read_data="test content"))
+    open_mock = mocker.patch("builtins.open", mocker.mock_open(read_data=b"test content"))
 
     src_file = tmpdir / "test-äöüàéè.txt"
 
@@ -145,14 +145,14 @@ def test_copy_mocked(tmpdir, mocker):
     copy(src_file, destinations)
 
     open_mock().write.assert_has_calls(
-        [mocker.call("test content"), mocker.call("test content"), mocker.call("test content")]
+        [mocker.call(b"test content"), mocker.call(b"test content"), mocker.call(b"test content")]
     )
     assert open_mock().write.call_count == 3
     assert copystat_mock.call_count == 3
 
 
 def test_copy_error(tmpdir, mocker):
-    open_mock = mocker.patch("builtins.open", mocker.mock_open(read_data="test content"))
+    open_mock = mocker.patch("builtins.open", mocker.mock_open(read_data=b"test content"))
     open_mock.side_effect = OSError()
 
     src_file = tmpdir / "test-äöüàéè.txt"
