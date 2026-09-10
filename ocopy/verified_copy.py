@@ -301,7 +301,7 @@ def _classify_destinations(
         )
         if not skip_existing or not meta_ok:
             if overwrite:
-                dest.unlink()
+                _force_unlink(dest)
                 copy_idx.append(i)
             else:
                 raise FileExistsError(f"{dest.as_posix()} exists!")
@@ -414,8 +414,7 @@ def verified_copy(
                         raise VerificationError(f"Verification failed for {src_file}")
                     _cleanup_tmps(tmps)
                     for dest in destinations:
-                        with contextlib.suppress(FileNotFoundError):
-                            dest.unlink()
+                        _force_unlink(dest)
                     continue  # retry from classification
                 digest = combined
             else:
@@ -450,10 +449,25 @@ def _record_checkpoints(
         cp.record(rel_path, size, mtime, algorithm, digest)
 
 
+def _force_unlink(path: Path) -> None:
+    """Unlink ``path``, first clearing file flags on platforms that have them.
+
+    A destination copied from an immutable source carries ``UF_IMMUTABLE``, and
+    ``unlink`` on such a file fails with ``EPERM``. Overwrite, the verification
+    retry and rollback all need to be able to remove a destination they just
+    wrote, so none of them can assume the file is deletable.
+    """
+    chflags = getattr(os, "chflags", None)
+    if chflags is not None:
+        with contextlib.suppress(OSError):
+            chflags(path, 0)
+    with contextlib.suppress(FileNotFoundError):
+        path.unlink()
+
+
 def _cleanup_tmps(tmps: list[Path]) -> None:
     for tmp in tmps:
-        with contextlib.suppress(FileNotFoundError):
-            tmp.unlink()
+        _force_unlink(tmp)
 
 
 def _rename_tmps(tmps: list[Path], final_paths: list[Path], src_file: Path) -> None:
@@ -465,9 +479,19 @@ def _rename_tmps(tmps: list[Path], final_paths: list[Path], src_file: Path) -> N
     fail with ``EPERM``, failing the whole copy. GoPro cards ship exactly such
     files (``Get_started_with_GoPro.url``).
     """
-    for tmp, final in zip(tmps, final_paths, strict=True):
-        tmp.rename(final)
-        copystat(src_file, final)
+    committed: list[Path] = []
+    try:
+        for tmp, final in zip(tmps, final_paths, strict=True):
+            tmp.rename(final)
+            committed.append(final)
+            copystat(src_file, final)
+    except BaseException:
+        # The caller's handler cleans up temps, but these are already at their final
+        # paths. With ``overwrite=True`` the previous destination is long gone, so
+        # leaving a half-written set behind would look like a successful copy.
+        for final in committed:
+            _force_unlink(final)
+        raise
 
 
 def copy_and_seal(

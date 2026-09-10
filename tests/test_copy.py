@@ -1,3 +1,4 @@
+import errno
 import os
 import stat
 import threading
@@ -19,6 +20,20 @@ from ocopy.verified_copy import (
     copytree,
     verified_copy,
 )
+
+# ``os.chflags`` and ``st_flags`` are BSD/macOS only. Reach them indirectly so the
+# type checker, which runs against Linux in CI, does not flag them as missing.
+_chflags = getattr(os, "chflags", None)
+_needs_flags = pytest.mark.skipif(_chflags is None, reason="requires BSD/macOS file flags")
+
+
+def _set_flags(path, flags):
+    assert _chflags is not None
+    _chflags(path, flags)
+
+
+def _get_flags(path) -> int:
+    return getattr(os.stat(path), "st_flags", 0)
 
 
 def _install_counting_rename_tmps(mocker):
@@ -711,7 +726,7 @@ def test_copy_job_io_error(card, mocker):
     assert expected_tmps <= set(unlinked_paths)
 
 
-@pytest.mark.skipif(not hasattr(os, "chflags"), reason="requires BSD/macOS file flags")
+@_needs_flags
 def test_immutable_source_file_is_copied(tmp_path):
     """A ``uchg`` source file must not break the tmp->final rename.
 
@@ -726,7 +741,7 @@ def test_immutable_source_file_is_copied(tmp_path):
     immutable.write_text("[InternetShortcut]\n")
     plain = src / "clip.mp4"
     plain.write_text("x" * 1024)
-    os.chflags(immutable, stat.UF_IMMUTABLE)
+    _set_flags(immutable, stat.UF_IMMUTABLE)
 
     dst = tmp_path / "dst"
     dst.mkdir()
@@ -737,10 +752,77 @@ def test_immutable_source_file_is_copied(tmp_path):
         assert copied.exists()
         assert copied.read_text() == "[InternetShortcut]\n"
         # The flag belongs on the delivered file, not on the temp.
-        assert os.stat(copied).st_flags & stat.UF_IMMUTABLE
+        assert _get_flags(copied) & stat.UF_IMMUTABLE
         assert not list(dst.rglob("*.copy_in_progress"))
         assert (dst / plain.name).exists()
     finally:
         for p in (immutable, copied):
             if p.exists():
-                os.chflags(p, 0)
+                _set_flags(p, 0)
+
+
+@_needs_flags
+def test_overwrite_replaces_immutable_destination(tmp_path):
+    """``overwrite=True`` must be able to remove a destination it made immutable.
+
+    Once an immutable source copies successfully, the destination carries
+    ``UF_IMMUTABLE`` too, and a plain ``unlink`` on it fails with ``EPERM``.
+    """
+    src = tmp_path / "src"
+    src.mkdir()
+    immutable = src / "Get_started_with_GoPro.url"
+    immutable.write_text("v1\n")
+    _set_flags(immutable, stat.UF_IMMUTABLE)
+
+    dst = tmp_path / "dst"
+    dst.mkdir()
+    copied = dst / immutable.name
+    try:
+        copytree(src, [dst])
+        assert _get_flags(copied) & stat.UF_IMMUTABLE
+
+        _set_flags(immutable, 0)
+        immutable.write_text("v2\n")
+        _set_flags(immutable, stat.UF_IMMUTABLE)
+
+        copytree(src, [dst], overwrite=True)
+        assert copied.read_text() == "v2\n"
+    finally:
+        for p in (immutable, copied):
+            if p.exists():
+                _set_flags(p, 0)
+
+
+def test_metadata_failure_rolls_back_committed_destinations(tmp_path, mocker):
+    """A failure after some temps are renamed must not leave a half-committed set.
+
+    ``_rename_tmps`` commits destination by destination. The caller's handler only
+    cleans up temps, so anything already renamed has to be rolled back here --
+    with ``overwrite=True`` the previous destination is already gone, so leftovers
+    would masquerade as a good copy.
+    """
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "clip.mp4").write_text("x" * 1024)
+
+    d1 = tmp_path / "d1"
+    d1.mkdir()
+    d2 = tmp_path / "d2"
+    d2.mkdir()
+
+    calls = {"n": 0}
+
+    def flaky_copystat(source, dest, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise OSError(errno.EPERM, "Operation not permitted")
+        return copystat(source, dest, **kwargs)
+
+    mocker.patch("ocopy.verified_copy.copystat", side_effect=flaky_copystat)
+
+    with pytest.raises(CopyTreeError):
+        copytree(src, [d1, d2])
+
+    assert not (d1 / "clip.mp4").exists(), "first destination was committed but not rolled back"
+    assert not (d2 / "clip.mp4").exists()
+    assert not list(tmp_path.rglob("*.copy_in_progress"))
