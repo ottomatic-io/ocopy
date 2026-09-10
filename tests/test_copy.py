@@ -1,3 +1,4 @@
+import contextlib
 import errno
 import os
 import stat
@@ -34,6 +35,20 @@ def _set_flags(path, flags):
 
 def _get_flags(path) -> int:
     return getattr(os.stat(path), "st_flags", 0)
+
+
+def _unlock_tree(root):
+    """Clear flags on everything under ``root``.
+
+    pytest cannot remove an immutable file, and one left behind makes every later
+    session fail at basetemp setup, so this has to cover files a failing assertion
+    never got to name.
+    """
+    if _chflags is None:
+        return
+    for p in root.rglob("*"):
+        with contextlib.suppress(OSError):
+            _chflags(p, 0)
 
 
 def _install_counting_rename_tmps(mocker):
@@ -756,9 +771,7 @@ def test_immutable_source_file_is_copied(tmp_path):
         assert not list(dst.rglob("*.copy_in_progress"))
         assert (dst / plain.name).exists()
     finally:
-        for p in (immutable, copied):
-            if p.exists():
-                _set_flags(p, 0)
+        _unlock_tree(tmp_path)
 
 
 @_needs_flags
@@ -788,9 +801,7 @@ def test_overwrite_replaces_immutable_destination(tmp_path):
         copytree(src, [dst], overwrite=True)
         assert copied.read_text() == "v2\n"
     finally:
-        for p in (immutable, copied):
-            if p.exists():
-                _set_flags(p, 0)
+        _unlock_tree(tmp_path)
 
 
 def test_metadata_failure_rolls_back_committed_destinations(tmp_path, mocker):
@@ -826,3 +837,85 @@ def test_metadata_failure_rolls_back_committed_destinations(tmp_path, mocker):
     assert not (d1 / "clip.mp4").exists(), "first destination was committed but not rolled back"
     assert not (d2 / "clip.mp4").exists()
     assert not list(tmp_path.rglob("*.copy_in_progress"))
+
+
+def test_metadata_is_applied_to_final_path_never_to_the_temp(tmp_path, mocker):
+    """The ordering invariant, checked on every OS.
+
+    The immutable-file tests can only run where ``chflags`` exists, so this asserts
+    the same guarantee -- metadata lands on the committed path, never on a
+    ``.copy_in_progress`` staging file -- without needing file flags.
+    """
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "clip.mp4").write_text("x" * 1024)
+
+    dst = tmp_path / "dst"
+    dst.mkdir()
+
+    seen: list[Path] = []
+
+    def recording_copystat(source, dest, **kwargs):
+        seen.append(Path(dest))
+        return copystat(source, dest, **kwargs)
+
+    mocker.patch("ocopy.verified_copy.copystat", side_effect=recording_copystat)
+
+    copytree(src, [dst])
+
+    assert seen, "copystat was never called"
+    assert not [p for p in seen if p.name.endswith(".copy_in_progress")]
+    assert dst / "clip.mp4" in seen
+
+
+@_needs_flags
+def test_leftover_immutable_temp_does_not_break_the_next_run(tmp_path):
+    """A temp left by the pre-fix bug must not fail the first run after upgrading.
+
+    Every card that hit the original bug left an immutable ``.copy_in_progress``
+    at the destination. ``open(tmp, "wb")`` fails with EPERM on such a file, before
+    any handler can clean it up, so without an up-front sweep the first re-run
+    still errored and only the second succeeded.
+    """
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "clip.mp4").write_text("x" * 1024)
+
+    dst = tmp_path / "dst"
+    dst.mkdir()
+    leftover = dst / "clip.mp4.copy_in_progress"
+    leftover.write_text("junk")
+    _set_flags(leftover, stat.UF_IMMUTABLE)
+
+    try:
+        copytree(src, [dst])
+        assert (dst / "clip.mp4").read_text() == "x" * 1024
+        assert not leftover.exists()
+    finally:
+        _unlock_tree(tmp_path)
+
+
+@_needs_flags
+def test_skip_existing_skips_an_immutable_delivered_file(tmp_path):
+    """A second run must fast-skip a delivered immutable file, not choke on it.
+
+    ``copystat`` runs after the rename now, so the destination mtime still has to
+    match the source for the size+mtime fast-skip to fire.
+    """
+    src = tmp_path / "src"
+    src.mkdir()
+    immutable = src / "Get_started_with_GoPro.url"
+    immutable.write_text("[InternetShortcut]\n")
+    _set_flags(immutable, stat.UF_IMMUTABLE)
+
+    dst = tmp_path / "dst"
+    dst.mkdir()
+    try:
+        copytree(src, [dst], skip_existing=True)
+        first = os.stat(dst / immutable.name).st_mtime
+
+        copytree(src, [dst], skip_existing=True)
+        assert os.stat(dst / immutable.name).st_mtime == first
+        assert (dst / immutable.name).read_text() == "[InternetShortcut]\n"
+    finally:
+        _unlock_tree(tmp_path)

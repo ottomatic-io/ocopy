@@ -97,14 +97,17 @@ def copy(
     destinations: list[Path],
     chunk_size: int = 1024 * 1024,
     algorithm: str = DEFAULT_ALGORITHM,
+    *,
     apply_metadata: bool = True,
 ) -> str:
     """Copy one file to multiple destinations chunk by chunk, returning its hash.
 
     ``apply_metadata`` stamps the source's mode, times and flags onto each
-    destination. Callers writing to a temporary path they intend to rename should
-    pass ``False`` and apply the metadata to the final path instead -- see
-    :func:`_rename_tmps`.
+    destination and defaults to on. Pass ``False`` only when the paths given are
+    staging files that will be renamed afterwards: ``copystat`` copies
+    ``st_flags``, so stamping an immutable source onto a staging file makes that
+    file immutable and the later rename fails with ``EPERM``. In that case apply
+    the metadata to the final path once it is in place.
 
     A mid-stream writer failure (ENOSPC, ENODEV on a yanked drive, etc.) is
     surfaced as an exception rather than a hang: the reader polls each writer's
@@ -382,6 +385,12 @@ def verified_copy(
             return ""
 
         tmps = [destinations[i].with_name(destinations[i].name + ".copy_in_progress") for i in copy_idx]
+        # Drop anything a previous attempt left here. A temp written before the
+        # copystat-ordering fix can be immutable, and ``open(tmp, "wb")`` would then
+        # fail with EPERM before the handler below ever gets to clean it up.
+        stale = [tmp for tmp in tmps if tmp.exists()]
+        if stale:
+            _cleanup_tmps(stale)
         copy_hash: str | None = None
         if tmps:
             try:
@@ -456,6 +465,10 @@ def _force_unlink(path: Path) -> None:
     ``unlink`` on such a file fails with ``EPERM``. Overwrite, the verification
     retry and rollback all need to be able to remove a destination they just
     wrote, so none of them can assume the file is deletable.
+
+    Note this also clears a flag a user set by hand (Finder's "Locked"), so an
+    explicit ``overwrite=True`` now replaces a locked destination instead of
+    failing.
     """
     chflags = getattr(os, "chflags", None)
     if chflags is not None:
