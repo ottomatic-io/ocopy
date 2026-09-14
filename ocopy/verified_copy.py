@@ -5,6 +5,7 @@ import contextlib
 import datetime
 import math
 import os
+import stat
 import time
 from collections import deque
 from collections.abc import Callable, Iterator
@@ -175,9 +176,38 @@ def copy(
         q.join()
 
     for d in destinations:
-        copystat(src_file, d)
+        copy_metadata(src_file, d)
 
     return x.string_digest()
+
+
+# BSD/macOS user flags that lock a file against modification, renaming or
+# deletion. ocopy never leaves these on a destination: see ``copy_metadata``.
+_LOCKING_FLAGS = getattr(stat, "UF_IMMUTABLE", 0) | getattr(stat, "UF_APPEND", 0) | getattr(stat, "UF_NOUNLINK", 0)
+
+
+def copy_metadata(src: Path, dst: Path) -> None:
+    """``shutil.copystat``, then clear any locking flags it put on ``dst``.
+
+    ocopy does not replicate ``UF_IMMUTABLE``, ``UF_APPEND`` or ``UF_NOUNLINK``.
+    A locked staging file cannot be renamed into place, and a locked destination
+    cannot be overwritten or cleaned up afterwards. The flag also rarely means
+    what it says: on an exFAT card (every GoPro card) macOS presents the FAT
+    read-only attribute as ``UF_IMMUTABLE``, so the two ``.url`` shortcuts GoPro
+    ships arrive looking immutable. ``rsync`` drops these flags too.
+
+    The flags are read back from ``dst`` rather than taken from ``src``, so a
+    filesystem that ignored them needs no second call. The system-level variants
+    (``SF_IMMUTABLE``, ``SF_APPEND``) need root to set, so ``copystat`` on such a
+    source fails with ``EPERM`` before this point, as it always has.
+    """
+    copystat(src, dst)
+    chflags = getattr(os, "chflags", None)
+    if chflags is None:
+        return
+    flags = getattr(os.stat(dst), "st_flags", 0)
+    if flags & _LOCKING_FLAGS:
+        chflags(dst, flags & ~_LOCKING_FLAGS)
 
 
 def _default_state(source_root: Path, verify: bool, algorithm: str = DEFAULT_ALGORITHM) -> _CopyState:

@@ -1,4 +1,6 @@
+import contextlib
 import os
+import stat
 import threading
 from io import BytesIO
 from pathlib import Path
@@ -15,9 +17,38 @@ from ocopy.verified_copy import (
     VerificationError,
     copy,
     copy_and_seal,
+    copy_metadata,
     copytree,
     verified_copy,
 )
+
+# ``os.chflags`` and ``st_flags`` are BSD/macOS only. Reach them indirectly so the
+# type checker, which runs against Linux in CI, does not flag them as missing.
+_chflags = getattr(os, "chflags", None)
+_needs_flags = pytest.mark.skipif(_chflags is None, reason="requires BSD/macOS file flags")
+
+
+def _set_flags(path, flags):
+    assert _chflags is not None
+    _chflags(path, flags)
+
+
+def _get_flags(path) -> int:
+    return getattr(os.stat(path), "st_flags", 0)
+
+
+def _unlock_tree(root):
+    """Clear flags on everything under ``root``.
+
+    pytest cannot remove a locked file, and one left behind makes every later
+    session fail at basetemp setup, so this has to cover files a failing assertion
+    never got to name.
+    """
+    if _chflags is None:
+        return
+    for p in root.rglob("*"):
+        with contextlib.suppress(OSError):
+            _chflags(p, 0)
 
 
 def _install_counting_rename_tmps(mocker):
@@ -131,7 +162,7 @@ def test_copy(tmpdir, algorithm):
 
 
 def test_copy_mocked(tmpdir, mocker):
-    copystat_mock = mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
+    copy_metadata_mock = mocker.patch("ocopy.verified_copy.copy_metadata", mocker.Mock())
     open_mock = mocker.patch("builtins.open", mocker.mock_open(read_data=b"test content"))
 
     src_file = tmpdir / "test-äöüàéè.txt"
@@ -148,7 +179,7 @@ def test_copy_mocked(tmpdir, mocker):
         [mocker.call(b"test content"), mocker.call(b"test content"), mocker.call(b"test content")]
     )
     assert open_mock().write.call_count == 3
-    assert copystat_mock.call_count == 3
+    assert copy_metadata_mock.call_count == 3
 
 
 def test_copy_error(tmpdir, mocker):
@@ -232,7 +263,7 @@ def test_verified_copy_io_error(tmp_path, mocker):
         return FakeIo(path)
 
     mocker.patch("builtins.open", fake_open)
-    mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
+    mocker.patch("ocopy.verified_copy.copy_metadata", mocker.Mock())
     mocker.patch("pathlib.Path.rename", mocker.Mock())
     unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
 
@@ -278,7 +309,7 @@ def test_verified_copy_verification_error(tmp_path, mocker):
         return FakeIo(path)
 
     mocker.patch("builtins.open", fake_open)
-    mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
+    mocker.patch("ocopy.verified_copy.copy_metadata", mocker.Mock())
     mocker.patch("pathlib.Path.rename", mocker.Mock())
     unlink_mock = mocker.patch("pathlib.Path.unlink", mocker.Mock())
 
@@ -627,7 +658,7 @@ def test_copy_job_verification_error(card, mocker):
         unlinked_paths.append(self)
 
     mocker.patch("builtins.open", fake_open)
-    mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
+    mocker.patch("ocopy.verified_copy.copy_metadata", mocker.Mock())
     mocker.patch("pathlib.Path.rename", mocker.Mock())
     rename_count = _install_counting_rename_tmps(mocker)
     mocker.patch("pathlib.Path.unlink", autospec=True, side_effect=_capture_unlink)
@@ -685,7 +716,7 @@ def test_copy_job_io_error(card, mocker):
         unlinked_paths.append(self)
 
     mocker.patch("builtins.open", fake_open)
-    mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
+    mocker.patch("ocopy.verified_copy.copy_metadata", mocker.Mock())
     mocker.patch("pathlib.Path.rename", mocker.Mock())
     rename_count = _install_counting_rename_tmps(mocker)
     mocker.patch("pathlib.Path.unlink", autospec=True, side_effect=_capture_unlink)
@@ -708,3 +739,98 @@ def test_copy_job_io_error(card, mocker):
     # destination.
     expected_tmps = {dest / "src" / "A001XXXX" / "A001C001_XXXX_XXXX.mov.copy_in_progress" for dest in destinations}
     assert expected_tmps <= set(unlinked_paths)
+
+
+@_needs_flags
+def test_locked_source_file_is_copied_unlocked(tmp_path):
+    """A ``uchg`` source must copy, and the delivered file must not be locked.
+
+    ``copystat`` copies ``st_flags``. Applying it to the ``.copy_in_progress``
+    temp made the temp itself immutable, so the rename failed with ``EPERM`` and
+    took the whole job down. GoPro cards ship such files
+    (``Get_started_with_GoPro.url``), so every card job failed. The lock is not
+    replicated at all; the timestamps still are, so a later ``skip_existing`` run
+    can fast-skip the file.
+    """
+    src = tmp_path / "src"
+    src.mkdir()
+    locked = src / "Get_started_with_GoPro.url"
+    locked.write_text("[InternetShortcut]\n")
+    old_mtime = 1_000_000_000
+    os.utime(locked, (old_mtime, old_mtime))
+    _set_flags(locked, stat.UF_IMMUTABLE)
+    plain = src / "clip.mp4"
+    plain.write_text("x" * 1024)
+
+    dst = tmp_path / "dst"
+    dst.mkdir()
+    copied = dst / locked.name
+    try:
+        copytree(src, [dst])
+
+        assert copied.read_text() == "[InternetShortcut]\n"
+        assert not _get_flags(copied) & stat.UF_IMMUTABLE
+        assert abs(os.stat(copied).st_mtime - old_mtime) <= 2
+        assert not list(dst.rglob("*.copy_in_progress"))
+        assert (dst / plain.name).exists()
+
+        copytree(src, [dst], skip_existing=True)
+    finally:
+        _unlock_tree(tmp_path)
+
+
+@_needs_flags
+def test_copy_metadata_drops_locking_flags_and_keeps_the_rest(tmp_path):
+    src = tmp_path / "src.bin"
+    src.write_text("src")
+    dst = tmp_path / "dst.bin"
+    dst.write_text("dst")
+    os.chmod(src, 0o640)
+    old_mtime = 1_000_000_000
+    os.utime(src, (old_mtime, old_mtime))
+    _set_flags(src, stat.UF_IMMUTABLE | stat.UF_APPEND | stat.UF_NOUNLINK | stat.UF_HIDDEN)
+    try:
+        copy_metadata(src, dst)
+
+        flags = _get_flags(dst)
+        assert not flags & (stat.UF_IMMUTABLE | stat.UF_APPEND | stat.UF_NOUNLINK)
+        assert flags & stat.UF_HIDDEN
+        assert stat.S_IMODE(os.stat(dst).st_mode) == 0o640
+        assert os.stat(dst).st_mtime == old_mtime
+    finally:
+        _unlock_tree(tmp_path)
+
+
+def test_copy_metadata_is_copystat(tmp_path, mocker):
+    """Metadata replication is ``shutil.copystat`` itself, not a re-implementation."""
+    src = tmp_path / "src.bin"
+    src.write_text("src")
+    dst = tmp_path / "dst.bin"
+    dst.write_text("dst")
+    copystat_mock = mocker.patch("ocopy.verified_copy.copystat")
+
+    copy_metadata(src, dst)
+
+    copystat_mock.assert_called_once_with(src, dst)
+
+
+@_needs_flags
+def test_overwrite_does_not_replace_a_destination_someone_locked(tmp_path):
+    """ocopy never creates a locked destination, so a lock there is a human's decision."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "clip.mp4").write_text("new")
+
+    dst = tmp_path / "dst"
+    dst.mkdir()
+    existing = dst / "clip.mp4"
+    existing.write_text("keep me")
+    _set_flags(existing, stat.UF_IMMUTABLE)
+    try:
+        with pytest.raises(CopyTreeError):
+            copytree(src, [dst], overwrite=True)
+
+        assert existing.read_text() == "keep me"
+        assert _get_flags(existing) & stat.UF_IMMUTABLE
+    finally:
+        _unlock_tree(tmp_path)
