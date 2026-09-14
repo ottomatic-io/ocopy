@@ -788,12 +788,12 @@ def test_copy_metadata_drops_locking_flags_and_keeps_the_rest(tmp_path):
     os.chmod(src, 0o640)
     old_mtime = 1_000_000_000
     os.utime(src, (old_mtime, old_mtime))
-    _set_flags(src, stat.UF_IMMUTABLE | stat.UF_APPEND | stat.UF_HIDDEN)
+    _set_flags(src, stat.UF_IMMUTABLE | stat.UF_APPEND | stat.UF_NOUNLINK | stat.UF_HIDDEN)
     try:
         copy_metadata(src, dst)
 
         flags = _get_flags(dst)
-        assert not flags & (stat.UF_IMMUTABLE | stat.UF_APPEND)
+        assert not flags & (stat.UF_IMMUTABLE | stat.UF_APPEND | stat.UF_NOUNLINK)
         assert flags & stat.UF_HIDDEN
         assert stat.S_IMODE(os.stat(dst).st_mode) == 0o640
         assert os.stat(dst).st_mtime == old_mtime
