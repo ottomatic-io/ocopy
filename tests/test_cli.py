@@ -201,7 +201,7 @@ def test_verification_error(card, mocker):
 
     mocker.patch("builtins.open", fake_open)
     mocker.patch("ocopy.utils.folder_size", fake_folder_size)
-    mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
+    mocker.patch("ocopy.verified_copy.copy_metadata", mocker.Mock())
     rename_mock = mocker.patch("pathlib.Path.rename", mocker.Mock())
     mocker.patch("pathlib.Path.unlink", autospec=True, side_effect=_capture_unlink)
 
@@ -248,7 +248,7 @@ def test_io_error(card, mocker):
 
     mocker.patch("builtins.open", fake_open)
     mocker.patch("ocopy.utils.folder_size", fake_folder_size)
-    mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
+    mocker.patch("ocopy.verified_copy.copy_metadata", mocker.Mock())
     rename_mock = mocker.patch("pathlib.Path.rename", mocker.Mock())
     mocker.patch("pathlib.Path.unlink", autospec=True, side_effect=_capture_unlink)
 
@@ -500,7 +500,7 @@ def test_machine_readable_error_path(card, mocker):
 
     mocker.patch("builtins.open", fake_open)
     mocker.patch("ocopy.utils.folder_size", fake_folder_size)
-    mocker.patch("ocopy.verified_copy.copystat", mocker.Mock())
+    mocker.patch("ocopy.verified_copy.copy_metadata", mocker.Mock())
     mocker.patch("pathlib.Path.rename", mocker.Mock())
     mocker.patch("pathlib.Path.unlink", autospec=True, side_effect=lambda self, missing_ok=False: None)
 
