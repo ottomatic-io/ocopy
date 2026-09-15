@@ -122,8 +122,8 @@ def test_seal_appends_generation_with_subdirectories(tmp_path):
 def test_seal_reports_missing_directory_from_history(tmp_path):
     """A directory recorded in history but deleted from the destination must still fail the seal."""
     src = tmp_path / "src"
+    # Empty so the only recorded path that goes missing is the directory itself.
     (src / "DCIM").mkdir(parents=True)
-    (src / "DCIM" / "clip.mp4").write_bytes(b"clip")
     (src / "top.bin").write_bytes(b"top")
 
     dst_parent = tmp_path / "dst"
@@ -131,7 +131,6 @@ def test_seal_reports_missing_directory_from_history(tmp_path):
     copy_and_seal(src, [dst_parent])
 
     dst = dst_parent / "src"
-    (dst / "DCIM" / "clip.mp4").unlink()
     (dst / "DCIM").rmdir()
     (dst / "top.bin").touch()
 
