@@ -33,6 +33,7 @@ class JSONLEmitter:
         skip_existing: bool,
         mhl: bool,
         legacy_mhl: bool,
+        contents: bool,
         total_bytes: int,
     ) -> None:
         click.echo(
@@ -48,6 +49,7 @@ class JSONLEmitter:
                     "skip_existing": skip_existing,
                     "mhl": mhl,
                     "legacy_mhl": legacy_mhl,
+                    "contents": contents,
                     "total_bytes": total_bytes,
                 }
             )

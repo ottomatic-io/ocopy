@@ -12,7 +12,7 @@ from ocopy.cli.update import Updater, suggested_update_command
 from ocopy.hash import DEFAULT_ALGORITHM, SUPPORTED_ALGORITHMS
 from ocopy.sleep_inhibit import sleep_inhibit_best_effort
 from ocopy.utils import folder_size, free_space, get_mount
-from ocopy.verified_copy import CopyJob
+from ocopy.verified_copy import CopyJob, destination_roots
 
 
 @click.command()
@@ -63,6 +63,16 @@ from ocopy.verified_copy import CopyJob
     default=False,
     help="Write legacy flat MHL v1.1 ``*.mhl`` files instead of ASC MHL ``ascmhl/`` (implies --mhl)",
 )
+@click.option(
+    "--contents",
+    is_flag=True,
+    default=False,
+    help=(
+        "Copy the contents of SOURCE directly into each destination instead of creating a folder "
+        "named after SOURCE inside it (the equivalent of a trailing slash in rsync or cp). "
+        "MHL output and checkpoints are then written to the destination itself."
+    ),
+)
 @click.argument("source", nargs=1, type=click.Path(exists=True, readable=True, file_okay=False, dir_okay=True))
 @click.argument(
     "destinations", nargs=-1, type=click.Path(exists=True, readable=True, writable=True, file_okay=False, dir_okay=True)
@@ -77,6 +87,7 @@ def cli(
     machine_readable: bool,
     mhl: bool,
     legacy_mhl: bool,
+    contents: bool,
     source: str,
     destinations: list[str],
 ):
@@ -84,6 +95,9 @@ def cli(
     o/COPY by OTTOMATIC
 
     Copy SOURCE directory to DESTINATIONS
+
+    By default each destination gets a folder named after SOURCE. With --contents
+    the files of SOURCE are copied straight into each destination.
     """
     # ``--legacy-mhl`` selects the manifest flavor and implies manifest writing. The only
     # contradictory combination is an explicit ``--no-mhl`` together with ``--legacy-mhl``.
@@ -99,6 +113,7 @@ def cli(
 
     source_path = Path(source)
     destination_paths = [Path(d) for d in destinations]
+    dest_roots = destination_roots(source_path, destination_paths, contents)
 
     size = folder_size(source)
     for destination in destinations:
@@ -132,8 +147,11 @@ def cli(
             skip_existing=skip_existing,
             mhl=mhl,
             legacy_mhl=legacy_mhl,
+            contents=contents,
             total_bytes=size,
         )
+    elif contents:
+        click.secho(f"Copying contents of {source} into {', '.join(destinations)}", fg="green")
     else:
         click.secho(f"Copying {source} to {', '.join(destinations)}", fg="green")
 
@@ -159,6 +177,7 @@ def cli(
             mhl=mhl,
             legacy_mhl=legacy_mhl,
             algorithm=hash_algorithm,
+            contents=contents,
         )
         if emitter:
             for _ in job.progress:
@@ -208,8 +227,8 @@ def cli(
             sys.exit(3)
 
         # TODO: check all destinations in parallel
-        for destination in destination_paths:
-            missing, _ = get_missing(source, str(destination / source_path.name))
+        for destination, dest_root in zip(destination_paths, dest_roots, strict=True):
+            missing, _ = get_missing(source, str(dest_root))
             if missing:
                 if emitter:
                     emitter.warning(
@@ -233,7 +252,7 @@ def cli(
                         fg="red",
                     )
 
-            in_progress_files = list((destination / source_path.name).glob("**/*copy_in_progress*"))
+            in_progress_files = list(dest_root.glob("**/*copy_in_progress*"))
             if in_progress_files:
                 if emitter:
                     emitter.warning(

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import datetime
+import errno
 import math
 import os
 import stat
@@ -185,9 +186,13 @@ def copy(
 # deletion. ocopy never leaves these on a destination: see ``copy_metadata``.
 _LOCKING_FLAGS = getattr(stat, "UF_IMMUTABLE", 0) | getattr(stat, "UF_APPEND", 0) | getattr(stat, "UF_NOUNLINK", 0)
 
+# BSD/macOS system flags (``SF_SETTABLE`` in ``sys/stat.h``: the high 16 bits).
+# Only root may set them. ``stat.SF_SETTABLE`` itself needs Python 3.13.
+_SYSTEM_FLAGS = 0xFFFF0000
+
 
 def copy_metadata(src: Path, dst: Path) -> None:
-    """``shutil.copystat``, then clear any locking flags it put on ``dst``.
+    """Replicate the times, mode and flags of ``src`` onto ``dst``, minus the flags ocopy drops.
 
     ocopy does not replicate ``UF_IMMUTABLE``, ``UF_APPEND`` or ``UF_NOUNLINK``.
     A locked staging file cannot be renamed into place, and a locked destination
@@ -196,18 +201,36 @@ def copy_metadata(src: Path, dst: Path) -> None:
     read-only attribute as ``UF_IMMUTABLE``, so the two ``.url`` shortcuts GoPro
     ships arrive looking immutable. ``rsync`` drops these flags too.
 
-    The flags are read back from ``dst`` rather than taken from ``src``, so a
-    filesystem that ignored them needs no second call. The system-level variants
-    (``SF_IMMUTABLE``, ``SF_APPEND``) need root to set, so ``copystat`` on such a
-    source fails with ``EPERM`` before this point, as it always has.
+    System flags are not replicated either. macOS presents the FAT archive
+    attribute as ``SF_ARCHIVED``, so ordinary files on an exFAT card carry it,
+    and setting it as a normal user fails with ``EPERM``.
+
+    The dropped flags are never set in the first place, rather than set by
+    ``shutil.copystat`` and cleared afterwards. On an SMB share macOS maps
+    ``UF_IMMUTABLE`` to the DOS read-only attribute, and clearing it does not
+    stick: the next open and close of the file (ocopy's verification read)
+    brings it back, and the rename into place fails with ``EPERM``.
+
+    Where the platform has no file flags, this is ``shutil.copystat`` itself.
+    On macOS/BSD ``copystat`` copies nothing beyond times, mode and flags, so
+    applying those three directly loses nothing.
     """
-    copystat(src, dst)
     chflags = getattr(os, "chflags", None)
     if chflags is None:
+        copystat(src, dst)
         return
-    flags = getattr(os.stat(dst), "st_flags", 0)
-    if flags & _LOCKING_FLAGS:
-        chflags(dst, flags & ~_LOCKING_FLAGS)
+    st = os.stat(src)
+    os.utime(dst, ns=(st.st_atime_ns, st.st_mtime_ns))
+    os.chmod(dst, stat.S_IMODE(st.st_mode))
+    flags = getattr(st, "st_flags", 0) & ~(_SYSTEM_FLAGS | _LOCKING_FLAGS)
+    if not flags:
+        return
+    try:
+        chflags(dst, flags)
+    except OSError as why:
+        # Same tolerance as ``copystat``: a destination without flag support keeps the copy.
+        if why.errno not in (errno.ENOTSUP, errno.EOPNOTSUPP):
+            raise
 
 
 def _default_state(source_root: Path, verify: bool, algorithm: str = DEFAULT_ALGORITHM) -> _CopyState:
@@ -474,14 +497,31 @@ def _record_checkpoints(
 
 
 def _cleanup_tmps(tmps: list[Path]) -> None:
+    """Best-effort removal of staging files while an exception is propagating.
+
+    A temp that cannot be removed (for example one a filesystem locked) must not
+    replace the exception that got us here: that one names the actual failure.
+    """
     for tmp in tmps:
-        with contextlib.suppress(FileNotFoundError):
+        with contextlib.suppress(OSError):
             tmp.unlink()
 
 
 def _rename_tmps(tmps: list[Path], final_paths: list[Path]) -> None:
     for tmp, final in zip(tmps, final_paths, strict=True):
         tmp.rename(final)
+
+
+def destination_roots(source: Path, destinations: list[Path], contents: bool = False) -> list[Path]:
+    """Return the directory each destination's copy of ``source`` lands in.
+
+    By default a folder named after ``source`` is created inside each destination
+    (``dest / source.name``). With ``contents=True`` the files are copied straight
+    into each destination, the equivalent of a trailing slash in rsync or cp.
+    """
+    if contents:
+        return list(destinations)
+    return [d / source.name for d in destinations]
 
 
 def copy_and_seal(
@@ -494,8 +534,14 @@ def copy_and_seal(
     legacy_mhl: bool = False,
     cancel_token: CancelToken | None = None,
     algorithm: str = DEFAULT_ALGORITHM,
+    contents: bool = False,
 ) -> CopyResult:
     """Copy ``source`` into each destination and (optionally) seal an ASC MHL.
+
+    With ``contents=True`` the files of ``source`` are copied directly into each
+    destination instead of into ``destination / source.name``. The ASC MHL history
+    (or legacy ``*.mhl``) and the ``.ocopy-checkpoint`` then live in the destination
+    itself, so several sources can be merged into one sealed folder.
 
     The returned :class:`CopyResult` exposes ``skipped_files``, ``cancelled``, and
     ``checkpoint_paths`` so callers don't need to poke at thread attributes.
@@ -504,7 +550,7 @@ def copy_and_seal(
     """
     token = cancel_token or _never_cancelled
 
-    dest_roots = [d / source.name for d in destinations]
+    dest_roots = destination_roots(source, destinations, contents)
     checkpoints = [Checkpoint(root) for root in dest_roots]
     for cp in checkpoints:
         cp.ensure_exists()
@@ -581,6 +627,7 @@ class CopyJob(Thread):
         auto_start: bool = True,
         cancel_token: CancelToken | None = None,
         algorithm: str = DEFAULT_ALGORITHM,
+        contents: bool = False,
     ):
         super().__init__()
         self.daemon = True
@@ -600,10 +647,11 @@ class CopyJob(Thread):
         self.mhl = mhl
         self.legacy_mhl = legacy_mhl
         self.algorithm = algorithm
+        self.contents = contents
 
         # Pre-compute checkpoint paths so CLI cancel reporting works even before
         # the run thread has had a chance to create the files on disk.
-        dest_roots = [d / source.name for d in destinations]
+        dest_roots = destination_roots(source, destinations, contents)
         self.result = CopyResult(checkpoint_paths=[r / Checkpoint.FILENAME for r in dest_roots])
 
         self.total_size = folder_size(source)
@@ -766,6 +814,7 @@ class CopyJob(Thread):
                     legacy_mhl=self.legacy_mhl,
                     cancel_token=self._cancel_token,
                     algorithm=self.algorithm,
+                    contents=self.contents,
                 )
             except CopyTreeError as e:
                 self.errors = e.args[0]

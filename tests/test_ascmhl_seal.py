@@ -292,3 +292,112 @@ def test_seal_against_half_bootstrapped_ascmhl_folder_raises(tmp_path):
 
     with pytest.raises(ASCMHLSealError, match="missing chain"):
         seal_ascmhl_at_destination(dst_parent, src, infos)
+
+
+def test_contents_seals_history_in_destination_itself(tmp_path):
+    """``contents=True`` copies files straight into the destination and seals it there."""
+    src = tmp_path / "CARD_A"
+    src.mkdir()
+    (src / "a.bin").write_bytes(random.randbytes(2048))
+    (src / "sub").mkdir()
+    (src / "sub" / "b.bin").write_bytes(random.randbytes(1024))
+
+    dst = tmp_path / "PROJECT"
+    dst.mkdir()
+
+    copy_and_seal(src, [dst], contents=True)
+
+    assert not (dst / "CARD_A").exists()
+    assert (dst / "a.bin").exists()
+    assert (dst / "sub" / "b.bin").exists()
+    assert (dst / ascmhl_folder_name).is_dir()
+    assert not (dst / ".ocopy-checkpoint").exists()
+
+    from tests.ascmhl_validation import run_ascmhl_debug_verify, validate_ascmhl_xsd
+
+    validate_ascmhl_xsd(dst)
+    run_ascmhl_debug_verify(dst)
+
+
+def test_contents_merges_two_sources_into_one_history(tmp_path):
+    """Two cards copied with ``contents=True`` into one folder append two generations
+    to a single ASC MHL history that still verifies as a whole."""
+    card_a = tmp_path / "CARD_A"
+    card_a.mkdir()
+    (card_a / "a.bin").write_bytes(random.randbytes(2048))
+    card_b = tmp_path / "CARD_B"
+    card_b.mkdir()
+    (card_b / "b.bin").write_bytes(random.randbytes(2048))
+
+    dst = tmp_path / "PROJECT"
+    dst.mkdir()
+
+    copy_and_seal(card_a, [dst], contents=True)
+    copy_and_seal(card_b, [dst], contents=True)
+
+    assert (dst / "a.bin").exists()
+    assert (dst / "b.bin").exists()
+    assert len(sorted((dst / ascmhl_folder_name).glob("*.mhl"))) == 2
+
+    history = MHLHistory.load_from_path(str(dst))
+    assert len(history.hash_lists) == 2
+    assert history.hash_lists[0].find_media_hash_for_path("a.bin") is not None
+    assert history.hash_lists[1].find_media_hash_for_path("b.bin") is not None
+
+    from tests.ascmhl_validation import run_ascmhl_debug_verify, validate_ascmhl_xsd
+
+    validate_ascmhl_xsd(dst)
+    run_ascmhl_debug_verify(dst)
+
+
+def test_contents_rerun_skips_existing_and_reseals(tmp_path):
+    """A second run of the same source with ``contents=True`` fast-skips and still seals."""
+    src = tmp_path / "CARD_A"
+    src.mkdir()
+    (src / "a.bin").write_bytes(random.randbytes(2048))
+    dst = tmp_path / "PROJECT"
+    dst.mkdir()
+
+    copy_and_seal(src, [dst], contents=True)
+    result = copy_and_seal(src, [dst], contents=True, skip_existing=True)
+
+    assert result.skipped_files == 1
+    assert len(sorted((dst / ascmhl_folder_name).glob("*.mhl"))) == 2
+
+    from tests.ascmhl_validation import run_ascmhl_debug_verify
+
+    run_ascmhl_debug_verify(dst)
+
+
+def test_appledouble_files_are_neither_copied_nor_sealed(tmp_path):
+    """``._`` companions on the card are skipped, and a stale one on the destination is left alone.
+
+    On an SMB share without named streams macOS stores a file's extended
+    attributes in ``._<name>`` next to it and rewrites that file when the
+    attributes change. A GoPro card also carries a ``._`` file for one clip, so a
+    second run with ``skip_existing`` found a ``._`` on the share that no longer
+    matched the card's and failed with "exists!".
+    """
+    card = tmp_path / "KART-090"
+    clips = card / "DCIM" / "100GOPRO"
+    clips.mkdir(parents=True)
+    (clips / "KART-090GX010010.MP4").write_bytes(b"clip")
+    (clips / "._KART-090GX010010.MP4").write_bytes(b"card attributes")
+    dst = tmp_path / "share"
+    dst.mkdir()
+
+    copy_and_seal(card, [dst], skip_existing=True, contents=True)
+
+    copied = dst / "DCIM" / "100GOPRO"
+    assert (copied / "KART-090GX010010.MP4").read_bytes() == b"clip"
+    assert not (copied / "._KART-090GX010010.MP4").exists()
+
+    (copied / "._KART-090GX010010.MP4").write_bytes(b"attributes the SMB client wrote")
+    copy_and_seal(card, [dst], skip_existing=True, contents=True)
+
+    assert (copied / "._KART-090GX010010.MP4").read_bytes() == b"attributes the SMB client wrote"
+    history = MHLHistory.load_from_path(str(dst))
+    assert len(history.hash_lists) == 2
+    recorded = {Path(p).name for p in history.set_of_file_paths()}
+    assert "KART-090GX010010.MP4" in recorded
+    assert "._KART-090GX010010.MP4" not in recorded

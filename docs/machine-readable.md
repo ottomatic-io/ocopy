@@ -47,6 +47,7 @@ Emitted once, immediately after pre-flight checks pass.
 | `skip_existing` | bool | Skip files whose size+mtime+trusted hash match. |
 | `mhl` | bool | Write ASC MHL output. |
 | `legacy_mhl` | bool | Use legacy flat `.mhl` instead of ASC MHL. |
+| `contents` | bool | `--contents` was given: files land directly in each destination instead of `destination/<source name>`. |
 | `total_bytes` | int | Total source size to copy. |
 
 ### `warning`
@@ -131,7 +132,7 @@ The terminal event. Exactly one per run.
 ### Successful run
 
 ```
-{"type":"start","ts":1731350400.12,"schema_version":1,"source":"/Volumes/Card/A001","destinations":["/Volumes/Backup1/A001"],"hash_algorithm":"xxh64","verify":true,"skip_existing":true,"mhl":true,"legacy_mhl":false,"total_bytes":12345678}
+{"type":"start","ts":1731350400.12,"schema_version":1,"source":"/Volumes/Card/A001","destinations":["/Volumes/Backup1/A001"],"hash_algorithm":"xxh64","verify":true,"skip_existing":true,"mhl":true,"legacy_mhl":false,"contents":false,"total_bytes":12345678}
 {"type":"progress","ts":1731350401.01,"percent":4,"phase":"copy","current_file":"clip_001.mov","speed_bytes_per_sec":5.0e7,"eta_seconds":18.4}
 {"type":"progress","ts":1731350405.40,"percent":52,"phase":"copy","current_file":"clip_004.mov","speed_bytes_per_sec":6.1e7,"eta_seconds":9.7}
 {"type":"progress","ts":1731350410.55,"percent":98,"phase":"verify","current_file":"clip_008.mov","speed_bytes_per_sec":1.4e8,"eta_seconds":0.3}
@@ -141,7 +142,7 @@ The terminal event. Exactly one per run.
 ### Cancellation
 
 ```
-{"type":"start","ts":1731350400.12,"schema_version":1,"source":"/Volumes/Card/A001","destinations":["/Volumes/Backup1/A001"],"hash_algorithm":"xxh64","verify":true,"skip_existing":true,"mhl":true,"legacy_mhl":false,"total_bytes":12345678}
+{"type":"start","ts":1731350400.12,"schema_version":1,"source":"/Volumes/Card/A001","destinations":["/Volumes/Backup1/A001"],"hash_algorithm":"xxh64","verify":true,"skip_existing":true,"mhl":true,"legacy_mhl":false,"contents":false,"total_bytes":12345678}
 {"type":"progress","ts":1731350403.01,"percent":24,"phase":"copy","current_file":"clip_002.mov","speed_bytes_per_sec":4.8e7}
 {"type":"result","status":"cancelled","ts":1731350403.40,"files_verified":2,"checkpoints":["/Volumes/Backup1/A001/.ocopy-checkpoint"]}
 ```
@@ -149,7 +150,7 @@ The terminal event. Exactly one per run.
 ### Error
 
 ```
-{"type":"start","ts":1731350400.12,"schema_version":1,"source":"/Volumes/Card/A001","destinations":["/Volumes/Backup1/A001"],"hash_algorithm":"xxh64","verify":true,"skip_existing":true,"mhl":true,"legacy_mhl":false,"total_bytes":12345678}
+{"type":"start","ts":1731350400.12,"schema_version":1,"source":"/Volumes/Card/A001","destinations":["/Volumes/Backup1/A001"],"hash_algorithm":"xxh64","verify":true,"skip_existing":true,"mhl":true,"legacy_mhl":false,"contents":false,"total_bytes":12345678}
 {"type":"progress","ts":1731350402.01,"percent":18,"phase":"copy","current_file":"clip_002.mov","speed_bytes_per_sec":4.5e7}
 {"type":"result","status":"error","ts":1731350402.50,"code":"copy_failed","errors":[{"source":"/Volumes/Card/A001/clip_002.mov","destinations":["/Volumes/Backup1/A001/clip_002.mov"],"message":"IO Error"}],"files_copied":1,"files_skipped":0}
 ```
