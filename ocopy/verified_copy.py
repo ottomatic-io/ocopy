@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import datetime
+import errno
 import math
 import os
 import stat
@@ -185,9 +186,13 @@ def copy(
 # deletion. ocopy never leaves these on a destination: see ``copy_metadata``.
 _LOCKING_FLAGS = getattr(stat, "UF_IMMUTABLE", 0) | getattr(stat, "UF_APPEND", 0) | getattr(stat, "UF_NOUNLINK", 0)
 
+# BSD/macOS system flags (``SF_SETTABLE`` in ``sys/stat.h``: the high 16 bits).
+# Only root may set them. ``stat.SF_SETTABLE`` itself needs Python 3.13.
+_SYSTEM_FLAGS = 0xFFFF0000
+
 
 def copy_metadata(src: Path, dst: Path) -> None:
-    """``shutil.copystat``, then clear any locking flags it put on ``dst``.
+    """Replicate the times, mode and flags of ``src`` onto ``dst``, minus the flags ocopy drops.
 
     ocopy does not replicate ``UF_IMMUTABLE``, ``UF_APPEND`` or ``UF_NOUNLINK``.
     A locked staging file cannot be renamed into place, and a locked destination
@@ -196,18 +201,36 @@ def copy_metadata(src: Path, dst: Path) -> None:
     read-only attribute as ``UF_IMMUTABLE``, so the two ``.url`` shortcuts GoPro
     ships arrive looking immutable. ``rsync`` drops these flags too.
 
-    The flags are read back from ``dst`` rather than taken from ``src``, so a
-    filesystem that ignored them needs no second call. The system-level variants
-    (``SF_IMMUTABLE``, ``SF_APPEND``) need root to set, so ``copystat`` on such a
-    source fails with ``EPERM`` before this point, as it always has.
+    System flags are not replicated either. macOS presents the FAT archive
+    attribute as ``SF_ARCHIVED``, so ordinary files on an exFAT card carry it,
+    and setting it as a normal user fails with ``EPERM``.
+
+    The dropped flags are never set in the first place, rather than set by
+    ``shutil.copystat`` and cleared afterwards. On an SMB share macOS maps
+    ``UF_IMMUTABLE`` to the DOS read-only attribute, and clearing it does not
+    stick: the next open and close of the file (ocopy's verification read)
+    brings it back, and the rename into place fails with ``EPERM``.
+
+    Where the platform has no file flags, this is ``shutil.copystat`` itself.
+    On macOS/BSD ``copystat`` copies nothing beyond times, mode and flags, so
+    applying those three directly loses nothing.
     """
-    copystat(src, dst)
     chflags = getattr(os, "chflags", None)
     if chflags is None:
+        copystat(src, dst)
         return
-    flags = getattr(os.stat(dst), "st_flags", 0)
-    if flags & _LOCKING_FLAGS:
-        chflags(dst, flags & ~_LOCKING_FLAGS)
+    st = os.stat(src)
+    os.utime(dst, ns=(st.st_atime_ns, st.st_mtime_ns))
+    os.chmod(dst, stat.S_IMODE(st.st_mode))
+    flags = getattr(st, "st_flags", 0) & ~(_SYSTEM_FLAGS | _LOCKING_FLAGS)
+    if not flags:
+        return
+    try:
+        chflags(dst, flags)
+    except OSError as why:
+        # Same tolerance as ``copystat``: a destination without flag support keeps the copy.
+        if why.errno not in (errno.ENOTSUP, errno.EOPNOTSUPP):
+            raise
 
 
 def _default_state(source_root: Path, verify: bool, algorithm: str = DEFAULT_ALGORITHM) -> _CopyState:
