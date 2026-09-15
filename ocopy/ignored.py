@@ -26,5 +26,16 @@ ignored_paths = frozenset(
 )
 
 
+# AppleDouble companions (``._<name>``) hold a file's extended attributes on
+# filesystems without native support: FAT/exFAT cards and SMB shares without
+# named streams. macOS creates and rewrites them itself, so they are not media,
+# and one on a share is rewritten as soon as the real file's attributes change,
+# which makes a later ``skip_existing`` run see it as a conflicting file.
+appledouble_prefix = "._"
+
+# ``ignored_paths`` plus the AppleDouble rule, as gitwildmatch patterns for ASC MHL.
+ignore_patterns = (*sorted(ignored_paths), f"{appledouble_prefix}*")
+
+
 def is_ignored_basename(name: str) -> bool:
-    return name in ignored_paths
+    return name in ignored_paths or name.startswith(appledouble_prefix)

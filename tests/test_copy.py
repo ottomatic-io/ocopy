@@ -982,3 +982,12 @@ def test_failed_cleanup_does_not_hide_the_original_error(tmp_path, mocker):
 
     assert excinfo.value is rename_error
     assert not (dst_2 / "clip.mp4.copy_in_progress").exists()
+
+
+def test_folder_size_skips_appledouble_files(tmp_path):
+    """Progress totals count only what ``copytree`` copies, so AppleDouble files are left out."""
+    (tmp_path / "DCIM").mkdir()
+    (tmp_path / "DCIM" / "clip.mp4").write_bytes(b"x" * 100)
+    (tmp_path / "DCIM" / "._clip.mp4").write_bytes(b"x" * 4096)
+
+    assert folder_size(tmp_path) == 100

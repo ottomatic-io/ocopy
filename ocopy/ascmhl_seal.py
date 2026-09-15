@@ -19,7 +19,7 @@ from ascmhl.history import MHLHistory
 from ascmhl.traverse import post_order_lexicographic
 
 from ocopy.file_info import FileInfo
-from ocopy.ignored import ignored_paths
+from ocopy.ignored import ignore_patterns
 from ocopy.utils import get_user_display_name
 
 
@@ -99,7 +99,7 @@ def seal_ascmhl_at_destination(
     by_rel = _file_infos_by_relposix(file_infos, src_root)
 
     history = _load_or_bootstrap_history(root)
-    ignore_spec = get_ignore_spec_including_nested_ignores(history, tuple(sorted(ignored_paths)), None)
+    ignore_spec = get_ignore_spec_including_nested_ignores(history, ignore_patterns, None)
     session = MHLGenerationCreationSession(history, ignore_spec)
 
     # Tracks files present in prior generations; anything still here at the end is "missing"
