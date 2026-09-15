@@ -85,3 +85,18 @@ def test_destination_ascmhl_folder_ignored(tmp_path):
     ascmhl.mkdir()
     (ascmhl / "gen.mhl").write_bytes(b"fake manifest")
     assert get_missing(str(card), str(backup)) == ([], 4)
+
+
+def test_appledouble_source_file_not_required(tmp_path):
+    """AppleDouble ``._`` companions on the card are not counted as required on the destination."""
+    card_name = "A001XXXX"
+    card = tmp_path / card_name
+    backup = tmp_path / "BACKUP"
+    card.mkdir()
+    backup.mkdir()
+    for i in range(1, 5):
+        (card / f"A001C00{i}_XXXX_XXXX.mov").write_bytes(b"x" * 100)
+    backup_destination = backup / "some" / "tree" / "structure" / card_name
+    shutil.copytree(card, backup_destination)
+    (card / "._A001C001_XXXX_XXXX.mov").write_bytes(b"attributes")
+    assert get_missing(str(card), str(backup)) == ([], 4)

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from threading import Thread
 
-from ocopy.ignored import ignored_paths
+from ocopy.ignored import is_ignored_basename
 
 if sys.platform == "darwin":
     import ctypes
@@ -58,7 +58,7 @@ def threaded(fn):
 
 def folder_size(path):
     total = 0
-    all_files = [f for f in Path(path).glob("**/*") if not any(dir_ in f.parts for dir_ in ignored_paths)]
+    all_files = [f for f in Path(path).glob("**/*") if not any(is_ignored_basename(part) for part in f.parts)]
     for entry in all_files:
         if entry.is_file():
             total += entry.stat().st_size
