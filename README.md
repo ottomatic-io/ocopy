@@ -59,6 +59,14 @@ After install the command is `ocopy`. Pass a **source** directory and one or mor
 ocopy /path/to/source /path/to/dest1 /path/to/dest2
 ```
 
+By default each destination gets a folder named after the source, so the example above produces `/path/to/dest1/source/…`. To copy the files of the source straight into each destination instead (the equivalent of a trailing slash in `rsync` or `cp`), pass `--contents`:
+
+```
+ocopy --contents /Volumes/CARD_A /path/to/PROJECT
+```
+
+This writes `CARD_A`'s files, its ASC MHL history, and checkpoints directly into `/path/to/PROJECT`. Running it again with a second source appends a new ASC MHL generation to the same history, so several cards can be merged into one sealed folder.
+
 Run `ocopy --help` for the full flag list. The introduction above describes skip-existing, verification, ASC MHL histories vs. legacy flat MHL, and checkpoints.
 
 During a long run the CLI tries to keep the system from going to idle sleep; that is best-effort and may not work in headless setups, and o/COPY will warn and continue copying.

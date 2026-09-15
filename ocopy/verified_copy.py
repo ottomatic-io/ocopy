@@ -484,6 +484,18 @@ def _rename_tmps(tmps: list[Path], final_paths: list[Path]) -> None:
         tmp.rename(final)
 
 
+def destination_roots(source: Path, destinations: list[Path], contents: bool = False) -> list[Path]:
+    """Return the directory each destination's copy of ``source`` lands in.
+
+    By default a folder named after ``source`` is created inside each destination
+    (``dest / source.name``). With ``contents=True`` the files are copied straight
+    into each destination, the equivalent of a trailing slash in rsync or cp.
+    """
+    if contents:
+        return list(destinations)
+    return [d / source.name for d in destinations]
+
+
 def copy_and_seal(
     source: Path,
     destinations: list[Path],
@@ -494,8 +506,14 @@ def copy_and_seal(
     legacy_mhl: bool = False,
     cancel_token: CancelToken | None = None,
     algorithm: str = DEFAULT_ALGORITHM,
+    contents: bool = False,
 ) -> CopyResult:
     """Copy ``source`` into each destination and (optionally) seal an ASC MHL.
+
+    With ``contents=True`` the files of ``source`` are copied directly into each
+    destination instead of into ``destination / source.name``. The ASC MHL history
+    (or legacy ``*.mhl``) and the ``.ocopy-checkpoint`` then live in the destination
+    itself, so several sources can be merged into one sealed folder.
 
     The returned :class:`CopyResult` exposes ``skipped_files``, ``cancelled``, and
     ``checkpoint_paths`` so callers don't need to poke at thread attributes.
@@ -504,7 +522,7 @@ def copy_and_seal(
     """
     token = cancel_token or _never_cancelled
 
-    dest_roots = [d / source.name for d in destinations]
+    dest_roots = destination_roots(source, destinations, contents)
     checkpoints = [Checkpoint(root) for root in dest_roots]
     for cp in checkpoints:
         cp.ensure_exists()
@@ -581,6 +599,7 @@ class CopyJob(Thread):
         auto_start: bool = True,
         cancel_token: CancelToken | None = None,
         algorithm: str = DEFAULT_ALGORITHM,
+        contents: bool = False,
     ):
         super().__init__()
         self.daemon = True
@@ -600,10 +619,11 @@ class CopyJob(Thread):
         self.mhl = mhl
         self.legacy_mhl = legacy_mhl
         self.algorithm = algorithm
+        self.contents = contents
 
         # Pre-compute checkpoint paths so CLI cancel reporting works even before
         # the run thread has had a chance to create the files on disk.
-        dest_roots = [d / source.name for d in destinations]
+        dest_roots = destination_roots(source, destinations, contents)
         self.result = CopyResult(checkpoint_paths=[r / Checkpoint.FILENAME for r in dest_roots])
 
         self.total_size = folder_size(source)
@@ -766,6 +786,7 @@ class CopyJob(Thread):
                     legacy_mhl=self.legacy_mhl,
                     cancel_token=self._cancel_token,
                     algorithm=self.algorithm,
+                    contents=self.contents,
                 )
             except CopyTreeError as e:
                 self.errors = e.args[0]

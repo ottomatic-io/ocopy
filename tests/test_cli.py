@@ -528,3 +528,64 @@ def test_update(card):
     result = runner.invoke(cli, [src_dir.as_posix(), *[d.as_posix() for d in destinations]])
     assert result.exit_code == 0
     assert "update" in result.output
+
+
+def test_contents_copies_into_destination(card):
+    """``--contents`` lands files and the ASC MHL history in the destination itself."""
+    src_dir, destinations = card
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["--contents", src_dir.as_posix(), *[d.as_posix() for d in destinations]])
+    assert result.exit_code == 0, result.output
+    assert f"Copying contents of {src_dir.as_posix()}" in result.output
+    assert "missing" not in result.output
+    assert "in progress" not in result.output
+
+    for dst in destinations:
+        assert not (dst / src_dir.name).exists()
+        assert (dst / "A001XXXX" / "A001C001_XXXX_XXXX.mov").exists()
+        assert (dst / "ascmhl").is_dir()
+        assert not (dst / ".ocopy-checkpoint").exists()
+
+
+def test_contents_legacy_mhl(card):
+    src_dir, destinations = card
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli, ["--contents", "--legacy-mhl", src_dir.as_posix(), *[d.as_posix() for d in destinations]]
+    )
+    assert result.exit_code == 0, result.output
+
+    for dst in destinations:
+        assert not (dst / src_dir.name).exists()
+        assert not (dst / "ascmhl").exists()
+        assert len(list(dst.glob("*.mhl"))) == 1
+
+
+def test_contents_machine_readable_start_event(card):
+    import json
+
+    src_dir, destinations = card
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli, ["--machine-readable", "--contents", src_dir.as_posix(), *[d.as_posix() for d in destinations]]
+    )
+    assert result.exit_code == 0, result.output
+    events = [json.loads(line) for line in result.output.strip().splitlines()]
+    assert events[0]["type"] == "start"
+    assert events[0]["contents"] is True
+    assert events[-1]["status"] == "ok"
+
+
+def test_machine_readable_start_event_contents_defaults_false(card):
+    import json
+
+    src_dir, destinations = card
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["--machine-readable", src_dir.as_posix(), *[d.as_posix() for d in destinations]])
+    assert result.exit_code == 0, result.output
+    events = [json.loads(line) for line in result.output.strip().splitlines()]
+    assert events[0]["contents"] is False
