@@ -109,10 +109,11 @@ def seal_ascmhl_at_destination(
 
     for folder_path, children in post_order_lexicographic(root, ignore_spec.get_path_spec()):
         for item_name, is_dir in children:
+            file_path = os.path.join(folder_path, item_name)
+            # History contains directory entries too, so discard before skipping directories.
+            not_found_paths.discard(file_path)
             if is_dir:
                 continue
-            file_path = os.path.join(folder_path, item_name)
-            not_found_paths.discard(file_path)
 
             rel_posix = Path(file_path).resolve().relative_to(root_path).as_posix()
             fi = by_rel.get(rel_posix)

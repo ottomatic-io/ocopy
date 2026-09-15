@@ -102,6 +102,42 @@ def test_seal_appends_generation_on_existing_ascmhl_history(tmp_path):
     assert len(history.hash_lists) == 2
 
 
+def test_seal_appends_generation_with_subdirectories(tmp_path):
+    """Directory entries recorded in generation 1 must be matched on disk in generation 2,
+    otherwise the completeness check reports them missing (camera card layout)."""
+    src = tmp_path / "src"
+    (src / "DCIM" / "100GOPRO").mkdir(parents=True)
+    (src / "DCIM" / "100GOPRO" / "clip.mp4").write_bytes(b"clip")
+
+    dst_parent = tmp_path / "dst"
+    dst_parent.mkdir()
+
+    copy_and_seal(src, [dst_parent])
+    copy_and_seal(src, [dst_parent], skip_existing=True)
+
+    history = MHLHistory.load_from_path(str(dst_parent / "src"))
+    assert len(history.hash_lists) == 2
+
+
+def test_seal_reports_missing_directory_from_history(tmp_path):
+    """A directory recorded in history but deleted from the destination must still fail the seal."""
+    src = tmp_path / "src"
+    # Empty so the only recorded path that goes missing is the directory itself.
+    (src / "DCIM").mkdir(parents=True)
+    (src / "top.bin").write_bytes(b"top")
+
+    dst_parent = tmp_path / "dst"
+    dst_parent.mkdir()
+    copy_and_seal(src, [dst_parent])
+
+    dst = dst_parent / "src"
+    (dst / "DCIM").rmdir()
+    (dst / "top.bin").touch()
+
+    with pytest.raises(ASCMHLSealError, match="completeness check failed"):
+        seal_ascmhl_at_destination(dst, dst, [])
+
+
 def test_seal_rejects_file_info_outside_source_root(tmp_path):
     """``_file_infos_by_relposix`` must reject sources that do not live under ``source_root``
     rather than surfacing an opaque ``ValueError`` from ``Path.relative_to``."""
