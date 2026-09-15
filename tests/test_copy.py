@@ -950,3 +950,35 @@ def test_exfat_archived_files_are_copied(tmp_path, mocker):
     assert (dst / "DCIM" / "leinfo.sav").read_text() == "archived"
     assert (dst / "mdb_v01.db").read_text() == "plain"
     assert not list(dst.rglob("*.copy_in_progress"))
+
+
+def test_failed_cleanup_does_not_hide_the_original_error(tmp_path, mocker):
+    """The failure that aborted a copy is reported, not a later failure to remove its temps.
+
+    A temp locked on an SMB share could be neither renamed nor removed. The
+    ``unlink`` error replaced the rename error, so the log only named the temp
+    and hid which step had failed. The other temps are still removed.
+    """
+    src = tmp_path / "clip.mp4"
+    src.write_text("clip")
+    dst_1 = tmp_path / "dst_1"
+    dst_2 = tmp_path / "dst_2"
+    dst_1.mkdir()
+    dst_2.mkdir()
+    locked_tmp = dst_1 / "clip.mp4.copy_in_progress"
+    rename_error = PermissionError(1, "Operation not permitted", str(locked_tmp), str(dst_1 / "clip.mp4"))
+    mocker.patch("ocopy.verified_copy._rename_tmps", side_effect=rename_error)
+    real_unlink = Path.unlink
+
+    def unlink(self, *args, **kwargs):
+        if self == locked_tmp:
+            raise PermissionError(1, "Operation not permitted", str(self))
+        return real_unlink(self, *args, **kwargs)
+
+    mocker.patch.object(Path, "unlink", unlink)
+
+    with pytest.raises(PermissionError) as excinfo:
+        verified_copy(src, [dst_1 / "clip.mp4", dst_2 / "clip.mp4"])
+
+    assert excinfo.value is rename_error
+    assert not (dst_2 / "clip.mp4.copy_in_progress").exists()

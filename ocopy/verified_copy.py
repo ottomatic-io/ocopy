@@ -497,8 +497,13 @@ def _record_checkpoints(
 
 
 def _cleanup_tmps(tmps: list[Path]) -> None:
+    """Best-effort removal of staging files while an exception is propagating.
+
+    A temp that cannot be removed (for example one a filesystem locked) must not
+    replace the exception that got us here: that one names the actual failure.
+    """
     for tmp in tmps:
-        with contextlib.suppress(FileNotFoundError):
+        with contextlib.suppress(OSError):
             tmp.unlink()
 
 
