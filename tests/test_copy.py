@@ -801,12 +801,14 @@ def test_copy_metadata_drops_locking_flags_and_keeps_the_rest(tmp_path):
         _unlock_tree(tmp_path)
 
 
-def test_copy_metadata_is_copystat(tmp_path, mocker):
-    """Metadata replication is ``shutil.copystat`` itself, not a re-implementation."""
+def test_copy_metadata_is_copystat_without_file_flags(tmp_path, mocker):
+    """Where the platform has no file flags, metadata replication is ``shutil.copystat`` itself."""
     src = tmp_path / "src.bin"
     src.write_text("src")
     dst = tmp_path / "dst.bin"
     dst.write_text("dst")
+    no_flags_os = mocker.Mock(wraps=os, spec=[name for name in dir(os) if name != "chflags"])
+    mocker.patch("ocopy.verified_copy.os", no_flags_os)
     copystat_mock = mocker.patch("ocopy.verified_copy.copystat")
 
     copy_metadata(src, dst)
@@ -834,3 +836,117 @@ def test_overwrite_does_not_replace_a_destination_someone_locked(tmp_path):
         assert _get_flags(existing) & stat.UF_IMMUTABLE
     finally:
         _unlock_tree(tmp_path)
+
+
+_SF_ARCHIVED = 0x00010000  # ``stat.SF_ARCHIVED``; spelled out because Linux lacks it
+
+
+def _simulate_exfat_archive_flags(
+    mocker, archived: set[Path], extra_flags: int = 0, archive_flag: int = _SF_ARCHIVED
+) -> list[tuple[str, int]]:
+    """Make ``archived`` report ``SF_ARCHIVED`` and ``chflags`` refuse system flags.
+
+    That is what macOS shows for files on an exFAT card, and what a non-root
+    ``chflags`` does with the flag. A normal user cannot set ``SF_ARCHIVED`` for
+    real, so both sides are simulated. Returns the ``chflags`` calls that went through.
+    """
+    real_stat = os.stat
+    applied: list[tuple[str, int]] = []
+
+    def fake_stat(path, *args, **kwargs):
+        st = real_stat(path, *args, **kwargs)
+        if Path(path) not in archived:
+            return st
+        fields = {name: getattr(st, name) for name in dir(st) if name.startswith("st_")}
+        fields["st_flags"] = archive_flag | extra_flags
+        return type("FakeStat", (), fields)()
+
+    def fake_chflags(path, flags, *args, **kwargs):
+        if flags & 0xFFFF0000:
+            raise PermissionError(1, "Operation not permitted", str(path))
+        applied.append((os.fspath(path), flags))
+
+    mocker.patch.object(os, "stat", side_effect=fake_stat)
+    mocker.patch.object(os, "chflags", side_effect=fake_chflags, create=True)
+    return applied
+
+
+def test_copy_metadata_drops_system_flags_and_keeps_the_rest(tmp_path, mocker):
+    """An ``SF_ARCHIVED`` source (any file on an exFAT card) must not fail with ``EPERM``.
+
+    ``copystat`` tried to set the flag on the destination, which only root may
+    do, so every such file failed to copy. Times, mode and the user flags ocopy
+    keeps must still arrive.
+    """
+    src = tmp_path / "mdb_h_v01.bk"
+    src.write_text("src")
+    dst = tmp_path / "dst.bin"
+    dst.write_text("dst")
+    os.chmod(src, 0o640)
+    old_mtime = 1_000_000_000
+    os.utime(src, (old_mtime, old_mtime))
+    hidden = getattr(stat, "UF_HIDDEN", 0x8000)
+    immutable = getattr(stat, "UF_IMMUTABLE", 0x2)
+    applied = _simulate_exfat_archive_flags(mocker, {src}, extra_flags=hidden | immutable)
+
+    copy_metadata(src, dst)
+
+    assert applied == [(str(dst), hidden)]
+    # Compared with the source rather than 0o640: Windows ``chmod`` only toggles read-only.
+    assert stat.S_IMODE(os.stat(dst).st_mode) == stat.S_IMODE(os.stat(src).st_mode)
+    assert os.stat(dst).st_mtime == old_mtime
+
+
+def test_copy_metadata_still_raises_unrelated_permission_errors(tmp_path, mocker):
+    src = tmp_path / "src.bin"
+    src.write_text("src")
+    dst = tmp_path / "dst.bin"
+    dst.write_text("dst")
+    denied = PermissionError(1, "Operation not permitted")
+    mocker.patch.object(os, "chflags", create=True, side_effect=denied)
+    mocker.patch("ocopy.verified_copy.copystat", side_effect=denied)
+    mocker.patch.object(os, "utime", side_effect=denied)
+
+    with pytest.raises(PermissionError):
+        copy_metadata(src, dst)
+
+
+def test_copy_metadata_never_sets_locking_flags(tmp_path, mocker):
+    """A locking flag is never applied to ``dst``, not even briefly.
+
+    Setting it and clearing it afterwards does not work on an SMB share: macOS
+    maps ``UF_IMMUTABLE`` to the DOS read-only attribute, the next open and close
+    of the file (the verification read) brings it back, and the rename of the
+    ``.copy_in_progress`` temp fails with ``EPERM``. Seen with a GoPro card's
+    ``.url`` shortcuts copied to a NAS.
+    """
+    src = tmp_path / "Get_started_with_GoPro.url"
+    src.write_text("[InternetShortcut]\n")
+    dst = tmp_path / "dst.url.copy_in_progress"
+    dst.write_text("[InternetShortcut]\n")
+    immutable = getattr(stat, "UF_IMMUTABLE", 0x2)
+    applied = _simulate_exfat_archive_flags(mocker, {src}, extra_flags=immutable, archive_flag=0)
+
+    copy_metadata(src, dst)
+
+    assert not [flags for _, flags in applied if flags & immutable]
+
+
+def test_exfat_archived_files_are_copied(tmp_path, mocker):
+    """A card whose files carry ``SF_ARCHIVED`` copies completely, as on a GoPro card."""
+    src = tmp_path / "src"
+    (src / "DCIM").mkdir(parents=True)
+    archived = {src / "Get_started_with_GoPro.url", src / "DCIM" / "leinfo.sav"}
+    for path in archived:
+        path.write_text("archived")
+    (src / "mdb_v01.db").write_text("plain")
+    _simulate_exfat_archive_flags(mocker, archived)
+
+    dst = tmp_path / "dst"
+    dst.mkdir()
+    copytree(src, [dst])
+
+    assert (dst / "Get_started_with_GoPro.url").read_text() == "archived"
+    assert (dst / "DCIM" / "leinfo.sav").read_text() == "archived"
+    assert (dst / "mdb_v01.db").read_text() == "plain"
+    assert not list(dst.rglob("*.copy_in_progress"))
