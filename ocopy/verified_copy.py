@@ -26,7 +26,7 @@ from ocopy.hash import DEFAULT_ALGORITHM, _new_hasher, find_hash, multi_xxhash_c
 from ocopy.ignored import is_ignored_basename
 from ocopy.mhl import write_mhl
 from ocopy.progress import ProgressPhase, ProgressUpdate, get_progress_queue
-from ocopy.utils import folder_size, threaded
+from ocopy.utils import folder_size, same_size_and_mtime, threaded
 
 SPEED_WINDOW_S = 5.0
 """Window length (seconds) for live throughput sampling."""
@@ -342,9 +342,7 @@ def _classify_destinations(
 
         dst_stat = dest.stat()
         src_stat = src_stat_fn()
-        meta_ok = (
-            skip_existing and src_stat.st_size == dst_stat.st_size and abs(src_stat.st_mtime - dst_stat.st_mtime) <= 2
-        )
+        meta_ok = skip_existing and same_size_and_mtime(src_stat, dst_stat)
         if not skip_existing or not meta_ok:
             if overwrite:
                 dest.unlink()

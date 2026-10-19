@@ -123,7 +123,7 @@ The terminal event. Exactly one per run.
 | `status` | `"error"` | |
 | `ts` | float | Unix epoch seconds. |
 | `code` | string | `insufficient_space` \| `copy_failed`. |
-| `errors` | object[] | Per-failure detail. For `copy_failed`: `{source, destinations[], message}`. For `insufficient_space`: `{destination, needed_bytes, available_bytes, message}`. |
+| `errors` | object[] | Per-failure detail. For `copy_failed`: `{source, destinations[], message}`. For `insufficient_space`: `{destination, needed_bytes, available_bytes, message}`, where `needed_bytes` is what still has to be written to that destination (files already there with a matching size and mtime, which `--skip-existing` leaves alone, are not counted). |
 | `files_copied` | int | Files completed before failure (may be 0). |
 | `files_skipped` | int | Files skipped before failure. |
 

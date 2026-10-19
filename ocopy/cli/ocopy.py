@@ -11,7 +11,7 @@ from ocopy.cli.jsonl_emitter import JSONLEmitter
 from ocopy.cli.update import Updater, suggested_update_command
 from ocopy.hash import DEFAULT_ALGORITHM, SUPPORTED_ALGORITHMS
 from ocopy.sleep_inhibit import sleep_inhibit_best_effort
-from ocopy.utils import folder_size, free_space, get_mount
+from ocopy.utils import bytes_to_copy, folder_size, free_space, get_mount
 from ocopy.verified_copy import CopyJob, destination_roots
 
 
@@ -116,16 +116,18 @@ def cli(
     dest_roots = destination_roots(source_path, destination_paths, contents)
 
     size = folder_size(source)
-    for destination in destinations:
+    for destination, dest_root in zip(destinations, dest_roots, strict=True):
         free = free_space(destination)
-        if free < size:
+        # Files already on the destination that --skip-existing will leave alone (a resumed copy) need no room.
+        needed = bytes_to_copy(source_path, dest_root, skip_existing) if dest_root.exists() else size
+        if free < needed:
             if emitter:
                 emitter.result_error(
                     code="insufficient_space",
                     errors=[
                         {
                             "destination": str(Path(destination).resolve()),
-                            "needed_bytes": size,
+                            "needed_bytes": needed,
                             "available_bytes": free,
                             "message": f"{destination} does not have enough free space.",
                         }
@@ -133,7 +135,7 @@ def cli(
                 )
             else:
                 click.secho(
-                    f"{destination} does not have enough free space (need {size} bytes, have {free} bytes).",
+                    f"{destination} does not have enough free space (need {needed} bytes, have {free} bytes).",
                     fg="red",
                 )
             sys.exit(1)
