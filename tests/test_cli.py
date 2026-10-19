@@ -170,6 +170,68 @@ def test_not_enough_space(card, mocker):
     assert "free space" in result.output
 
 
+def _interrupted_copy(tmp_path):
+    """A 4 x 100 byte source whose destination already holds three of the four files, as after an interrupted run."""
+    src = tmp_path / "src"
+    src.mkdir()
+    for i in range(4):
+        (src / f"f{i}.bin").write_bytes(bytes([i]) * 100)
+    dst = tmp_path / "dst"
+    dst.mkdir()
+
+    result = CliRunner().invoke(cli, [src.as_posix(), dst.as_posix()])
+    assert result.exit_code == 0
+    (dst / "src" / "f3.bin").unlink()
+    return src, dst
+
+
+def test_resume_only_needs_space_for_missing_files(tmp_path, mocker):
+    """Files already on the destination are skipped, so they must not count against the free space."""
+    src, dst = _interrupted_copy(tmp_path)
+
+    # 400 bytes in total, 100 still to copy: 150 bytes free is enough for a resume.
+    mocker.patch("ocopy.cli.ocopy.free_space", return_value=150)
+
+    result = CliRunner().invoke(cli, [src.as_posix(), dst.as_posix()])
+    assert result.exit_code == 0, result.output
+    assert "free space" not in result.output
+    assert (dst / "src" / "f3.bin").read_bytes() == bytes([3]) * 100
+
+
+def test_resume_still_fails_when_the_missing_files_do_not_fit(tmp_path, mocker):
+    import json
+
+    src, dst = _interrupted_copy(tmp_path)
+
+    mocker.patch("ocopy.cli.ocopy.free_space", return_value=50)
+
+    result = CliRunner().invoke(cli, ["--machine-readable", src.as_posix(), dst.as_posix()])
+    assert result.exit_code == 1
+
+    events = [json.loads(line) for line in result.output.strip().splitlines()]
+    assert len(events) == 1
+    assert events[0]["code"] == "insufficient_space"
+    assert events[0]["errors"][0]["needed_bytes"] == 100
+    assert events[0]["errors"][0]["available_bytes"] == 50
+    assert not (dst / "src" / "f3.bin").exists()
+
+
+def test_dont_skip_needs_space_for_everything(tmp_path, mocker):
+    """Without --skip-existing nothing is skipped, so the whole source counts."""
+    import json
+
+    src, dst = _interrupted_copy(tmp_path)
+
+    mocker.patch("ocopy.cli.ocopy.free_space", return_value=150)
+
+    result = CliRunner().invoke(cli, ["--machine-readable", "--dont-skip", src.as_posix(), dst.as_posix()])
+    assert result.exit_code == 1
+
+    events = [json.loads(line) for line in result.output.strip().splitlines()]
+    assert events[0]["code"] == "insufficient_space"
+    assert events[0]["errors"][0]["needed_bytes"] == 400
+
+
 def test_verification_error(card, mocker):
     from contextlib import contextmanager
 

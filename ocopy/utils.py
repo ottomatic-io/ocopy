@@ -56,12 +56,44 @@ def threaded(fn):
     return wrapper
 
 
-def folder_size(path):
-    total = 0
+def _source_files(path):
     all_files = [f for f in Path(path).glob("**/*") if not any(is_ignored_basename(part) for part in f.parts)]
-    for entry in all_files:
-        if entry.is_file():
-            total += entry.stat().st_size
+    return [entry for entry in all_files if entry.is_file()]
+
+
+def folder_size(path):
+    return sum(entry.stat().st_size for entry in _source_files(path))
+
+
+def same_size_and_mtime(src_stat: os.stat_result, dst_stat: os.stat_result) -> bool:
+    """Whether a destination file looks like a finished copy of the source file.
+
+    This is the rule ``--skip-existing`` uses; the 2 second tolerance papers over sub-second
+    mtime truncation on FAT and some network filesystems.
+    """
+    return src_stat.st_size == dst_stat.st_size and abs(src_stat.st_mtime - dst_stat.st_mtime) <= 2
+
+
+def bytes_to_copy(source, dest_root, skip_existing: bool = True) -> int:
+    """Bytes still to be written below ``dest_root`` to complete a copy of ``source``.
+
+    Same file selection as :func:`folder_size`, minus the files that ``--skip-existing`` will leave
+    alone because the destination already holds a copy with the same size and modification time.
+    A resumed copy therefore only needs room for what is missing, not for the whole source again.
+    """
+    source, dest_root = Path(source), Path(dest_root)
+    total = 0
+    for entry in _source_files(source):
+        src_stat = entry.stat()
+        if skip_existing:
+            try:
+                dst_stat = (dest_root / entry.relative_to(source)).stat()
+            except OSError:
+                pass
+            else:
+                if same_size_and_mtime(src_stat, dst_stat):
+                    continue
+        total += src_stat.st_size
     return total
 
 
